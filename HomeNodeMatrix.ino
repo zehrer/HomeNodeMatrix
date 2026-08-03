@@ -1,8 +1,9 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
+  - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
+  - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
   - Multi-Language Support: English & German (Configurable via Web & CLI)
-  - Animated Wi-Fi Connection Screen: Rotating ring of dots around Wi-Fi logo during setup/boot
   - Ultra-compact 3x5 Pixel Font for 15-char IP addresses (e.g. 192.168.178.154)
   - Dynamic Brightness Control via Web, CLI & Flash persistence
   - UP Button   -> Status Screen (Matrix IP, Shelly IP & Fronius IP)
@@ -204,50 +205,40 @@ void drawWifiIcon(int16_t x, int16_t y, uint16_t color) {
 }
 
 // ----------------------------------------------------------------------
-// Animated Wi-Fi Connection Screen (Circle of 8 Dots around Wi-Fi Logo)
+// Animated Wi-Fi Connection Screen: Ring of 8 Dots Filling Up (No Text)
 // ----------------------------------------------------------------------
 const int8_t spinnerDots[8][2] PROGMEM = {
-  { 0, -14}, // Top
-  { 10, -10}, // Top-Right
-  { 14,   0}, // Right
-  { 10,  10}, // Bottom-Right
-  { 0,  14}, // Bottom
-  {-10,  10}, // Bottom-Left
-  {-14,   0}, // Left
-  {-10, -10}  // Top-Left
+  { 0, -14}, // 1. Top (12 o'clock)
+  { 10, -10}, // 2. Top-Right (1:30)
+  { 14,   0}, // 3. Right (3 o'clock)
+  { 10,  10}, // 4. Bottom-Right (4:30)
+  { 0,  14}, // 5. Bottom (6 o'clock)
+  {-10,  10}, // 6. Bottom-Left (7:30)
+  {-14,   0}, // 7. Left (9 o'clock)
+  {-10, -10}  // 8. Top-Left (10:30)
 };
 
-void drawWifiConnectingScreen(int frame) {
+void drawWifiFillProgressScreen(int filledCount) {
   matrix.fillScreen(COLOR_BLACK);
-  matrix.setTextWrap(false);
 
-  // Draw Wi-Fi Icon centered at (28, 22)
-  drawWifiIcon(28, 22, COLOR_CYAN);
+  // Wi-Fi Icon centered at (28, 24)
+  drawWifiIcon(28, 24, COLOR_CYAN);
 
   int cx = 31;
-  int cy = 25;
+  int cy = 27;
 
-  // Draw 8 loading dots around the Wi-Fi icon
+  // Draw 8 dots around the Wi-Fi icon, filling up clock-wise
   for (int i = 0; i < 8; i++) {
     int dx = (int8_t)pgm_read_byte(&spinnerDots[i][0]);
     int dy = (int8_t)pgm_read_byte(&spinnerDots[i][1]);
 
-    if (i == (frame % 8)) {
+    if (i < filledCount) {
+      // Filled dot (glowing yellow)
       matrix.fillRect(cx + dx - 1, cy + dy - 1, 2, 2, COLOR_YELLOW);
     } else {
+      // Empty dot (subtle gray)
       matrix.drawPixel(cx + dx, cy + dy, COLOR_GRAY);
     }
-  }
-
-  // Text below Wi-Fi spinner
-  matrix.setTextSize(1);
-  matrix.setTextColor(COLOR_WHITE);
-  if (config.lang == 0) { // German
-    matrix.setCursor(0, 52);
-    matrix.print(F("VERBINDE..."));
-  } else { // English
-    matrix.setCursor(2, 52);
-    matrix.print(F("CONNECTING"));
   }
 
   matrix.show();
@@ -1200,16 +1191,17 @@ void setup() {
     Serial.println(F("'"));
 
     WiFi.begin(config.wifi_ssid, config.wifi_pass);
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-      drawWifiConnectingScreen(attempts);
-      delay(350);
+
+    // 8 fill-up steps around the Wi-Fi icon (no text)
+    for (int step = 0; step <= 8; step++) {
+      drawWifiFillProgressScreen(step);
+      if (WiFi.status() == WL_CONNECTED) break;
+      delay(450);
       Serial.print(".");
-      attempts++;
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-      Serial.println(F("\n[WLAN] Connection failed! Starting Access Point Mode..."));
+      Serial.println(F("\n[WLAN] Connection failed! Switching to Access Point Mode..."));
       isAPMode = true;
     }
   }
