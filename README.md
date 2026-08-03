@@ -6,11 +6,11 @@ It fetches real-time solar generation data from your photovoltaic system (**Fron
 
 ---
 
-## 💾 Instant Drag-and-Drop Installation (No Code / IDE Required!)
+## 💾 Instant Drag-and-Drop Installation (Release Binary)
 
 You can instantly test HomeNodeMatrix without installing Arduino IDE or compiling code:
 
-1. **Download [`HomeNodeMatrix.uf2`](HomeNodeMatrix.uf2)** from this repository.
+1. **Download [`HomeNodeMatrix.uf2`](https://github.com/zehrer/HomeNodeMatrix/releases/latest/download/HomeNodeMatrix.uf2)** from the [Latest Release v0.1.0](https://github.com/zehrer/HomeNodeMatrix/releases/latest).
 2. Connect your **Adafruit MatrixPortal M4** to your computer via USB.
 3. **Double-click the RESET button** on the back of the MatrixPortal M4.
 4. The board will appear on your computer as a USB drive named **`MATRIXBOOT`** (or **`PORTALBOOT`**).

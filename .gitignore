@@ -1,5 +1,6 @@
 .DS_Store
 *.bak
 build/
+*.uf2
 .vscode/
 .idea/
