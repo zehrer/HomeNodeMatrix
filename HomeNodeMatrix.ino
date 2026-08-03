@@ -1,7 +1,8 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
-  - English Documentation & Code Comments
+  - Multi-Language Support: English & German (Configurable via Web & CLI)
+  - Animated Wi-Fi Connection Screen: Rotating ring of dots around Wi-Fi logo during setup/boot
   - Ultra-compact 3x5 Pixel Font for 15-char IP addresses (e.g. 192.168.178.154)
   - Dynamic Brightness Control via Web, CLI & Flash persistence
   - UP Button   -> Status Screen (Matrix IP, Shelly IP & Fronius IP)
@@ -202,6 +203,56 @@ void drawWifiIcon(int16_t x, int16_t y, uint16_t color) {
   matrix.drawPixel(x + 7, y + 1, color);
 }
 
+// ----------------------------------------------------------------------
+// Animated Wi-Fi Connection Screen (Circle of 8 Dots around Wi-Fi Logo)
+// ----------------------------------------------------------------------
+const int8_t spinnerDots[8][2] PROGMEM = {
+  { 0, -14}, // Top
+  { 10, -10}, // Top-Right
+  { 14,   0}, // Right
+  { 10,  10}, // Bottom-Right
+  { 0,  14}, // Bottom
+  {-10,  10}, // Bottom-Left
+  {-14,   0}, // Left
+  {-10, -10}  // Top-Left
+};
+
+void drawWifiConnectingScreen(int frame) {
+  matrix.fillScreen(COLOR_BLACK);
+  matrix.setTextWrap(false);
+
+  // Draw Wi-Fi Icon centered at (28, 22)
+  drawWifiIcon(28, 22, COLOR_CYAN);
+
+  int cx = 31;
+  int cy = 25;
+
+  // Draw 8 loading dots around the Wi-Fi icon
+  for (int i = 0; i < 8; i++) {
+    int dx = (int8_t)pgm_read_byte(&spinnerDots[i][0]);
+    int dy = (int8_t)pgm_read_byte(&spinnerDots[i][1]);
+
+    if (i == (frame % 8)) {
+      matrix.fillRect(cx + dx - 1, cy + dy - 1, 2, 2, COLOR_YELLOW);
+    } else {
+      matrix.drawPixel(cx + dx, cy + dy, COLOR_GRAY);
+    }
+  }
+
+  // Text below Wi-Fi spinner
+  matrix.setTextSize(1);
+  matrix.setTextColor(COLOR_WHITE);
+  if (config.lang == 0) { // German
+    matrix.setCursor(0, 52);
+    matrix.print(F("VERBINDE..."));
+  } else { // English
+    matrix.setCursor(2, 52);
+    matrix.print(F("CONNECTING"));
+  }
+
+  matrix.show();
+}
+
 // Date calculation from Unix Epoch
 void epochToDate(unsigned long epoch, int &year, int &month, int &day, int &wday) {
   unsigned long days = epoch / 86400L;
@@ -309,21 +360,21 @@ void handleButtons() {
   if (lastUpState == HIGH && currentUpState == LOW) {
     if (currentMode == MODE_STATUS) {
       currentMode = MODE_NORMAL;
-      Serial.println(F("\n[Button UP] -> Normal Screen (Clock & Energy)"));
+      Serial.println(F("\n[Button UP] -> Normal Screen"));
     } else {
       currentMode = MODE_STATUS;
-      Serial.println(F("\n[Button UP] -> Status Screen (IP Info)"));
+      Serial.println(F("\n[Button UP] -> Status Screen"));
     }
   }
 
   if (lastDownState == HIGH && currentDownState == LOW) {
     if (currentMode == MODE_PIXELDUST) {
       currentMode = MODE_NORMAL;
-      Serial.println(F("\n[Button DOWN] -> Normal Screen (Clock & Energy)"));
+      Serial.println(F("\n[Button DOWN] -> Normal Screen"));
     } else {
       currentMode = MODE_PIXELDUST;
       initPixelDust();
-      Serial.println(F("\n[Button DOWN] -> PixelDust Sand Physics Demo"));
+      Serial.println(F("\n[Button DOWN] -> PixelDust Demo"));
     }
   }
 
@@ -426,6 +477,7 @@ void showStatus() {
   if (currentMode == MODE_PIXELDUST) Serial.println("PIXEL DUST DEMO");
   else if (currentMode == MODE_STATUS) Serial.println("STATUS SCREEN");
   else Serial.println("CLOCK & ENERGY");
+  Serial.print(F(" Language:      ")); Serial.println(config.lang == 0 ? "DEUTSCH (German)" : "ENGLISH");
   Serial.print(F(" Wi-Fi Status:  ")); Serial.println(WiFi.status() == WL_CONNECTED ? "CONNECTED" : "DISCONNECTED");
   Serial.print(F(" Debug Log:     ")); Serial.println(debugMode ? "ON" : "OFF");
   Serial.print(F(" Wi-Fi SSID:    '")); Serial.print(config.wifi_ssid); Serial.println(F("'"));
@@ -444,6 +496,7 @@ void printHelp() {
   Serial.println(F("\n--- HomeNodeMatrix Serial CLI Commands ---"));
   Serial.println(F(" status                - Print current configuration & status"));
   Serial.println(F(" mode normal/status/dust - Switch active display mode"));
+  Serial.println(F(" lang de / lang en     - Switch system language (German / English)"));
   Serial.println(F(" brightness <10-255>   - Adjust display brightness (e.g. brightness 100)"));
   Serial.println(F(" debug on / debug off  - Enable or disable background live debug logs"));
   Serial.println(F(" wifi <ssid> <pass>    - Set Wi-Fi network credentials"));
@@ -485,6 +538,16 @@ void handleSerialCLI() {
           printHelp();
         } else if (serialBuffer.equals("status") || serialBuffer.equals("show")) {
           showStatus();
+          Serial.print(F("CLI> "));
+        } else if (serialBuffer.equals("lang de")) {
+          config.lang = 0;
+          saveConfig();
+          Serial.println(F("[CLI] Sprache geändert zu: DEUTSCH"));
+          Serial.print(F("CLI> "));
+        } else if (serialBuffer.equals("lang en")) {
+          config.lang = 1;
+          saveConfig();
+          Serial.println(F("[CLI] Language changed to: ENGLISH"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("mode status")) {
           currentMode = MODE_STATUS;
@@ -668,6 +731,7 @@ void handleWebClient() {
         else if (key == "inverter_path") val.toCharArray(config.inverter_path, sizeof(config.inverter_path));
         else if (key == "utc_offset") config.utc_offset_sec = val.toInt();
         else if (key == "brightness") applyBrightness(val.toInt());
+        else if (key == "lang") config.lang = val.toInt();
       }
       paramPos = nextAmp + 1;
     }
@@ -682,8 +746,8 @@ void handleWebClient() {
     client.println("body{background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:50px;}");
     client.println(".card{background:#1e1e1e;max-width:400px;margin:auto;padding:30px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.5);}");
     client.println("h2{color:#00e676;}</style></head><body>");
-    client.println("<div class='card'><h2>Settings Saved!</h2>");
-    client.println("<p>MatrixPortal is rebooting and connecting to Wi-Fi...</p>");
+    client.println("<div class='card'><h2>Settings Saved! / Einstellungen gespeichert!</h2>");
+    client.println("<p>MatrixPortal is rebooting...</p>");
     client.println("<p>Please wait 10 seconds.</p></div></body></html>");
     client.flush();
     delay(10);
@@ -724,8 +788,8 @@ void handleWebClient() {
   client.println(".section{background:#2a2a2a;padding:14px;border-radius:10px;margin-bottom:14px;}");
   client.println("h2{font-size:13px;color:#80d8ff;margin-top:0;text-transform:uppercase;letter-spacing:1px;}");
   client.println("label{display:block;font-size:12px;margin:8px 0 4px;color:#aaa;}");
-  client.println("input[type=text],input[type=password],input[type=number]{width:100%;padding:10px;border-radius:6px;border:1px solid #444;background:#333;color:#fff;box-sizing:border-box;font-size:14px;}");
-  client.println("input:focus{border-color:#00e676;outline:none;}");
+  client.println("input[type=text],input[type=password],input[type=number],select{width:100%;padding:10px;border-radius:6px;border:1px solid #444;background:#333;color:#fff;box-sizing:border-box;font-size:14px;}");
+  client.println("input:focus,select:focus{border-color:#00e676;outline:none;}");
   client.println("button{width:100%;padding:14px;background:#00c853;border:none;border-radius:8px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;margin-top:10px;}");
   client.println("button:hover{background:#00e676;}");
   client.println(".info{font-size:11px;color:#888;text-align:center;margin-top:12px;}");
@@ -733,14 +797,14 @@ void handleWebClient() {
   client.println("<div class='container'><h1>HomeNodeMatrix Setup</h1>");
   client.println("<form method='POST' action='/save'>");
 
-  client.println("<div class='section'><h2>Wi-Fi Settings</h2>");
+  client.println("<div class='section'><h2>Wi-Fi / WLAN Settings</h2>");
   client.println("<label>Wi-Fi Name (SSID)</label>");
   client.print("<input type='text' name='ssid' value='"); client.print(config.wifi_ssid); client.println("' required>");
   client.println("<label>Wi-Fi Password</label>");
   client.print("<input type='password' name='pass' value='"); client.print(config.wifi_pass); client.println("'>");
   client.println("</div>");
 
-  client.println("<div class='section'><h2>Shelly 3Pro (Grid)</h2>");
+  client.println("<div class='section'><h2>Shelly 3Pro (Grid / Netz)</h2>");
   client.println("<label>Shelly IP Address</label>");
   client.print("<input type='text' name='shelly_ip' value='"); client.print(config.shelly_ip); client.println("' required>");
   client.println("<label>API Path</label>");
@@ -755,13 +819,19 @@ void handleWebClient() {
   client.println("</div>");
 
   client.println("<div class='section'><h2>System & Display</h2>");
+  client.println("<label>Language / Sprache</label>");
+  client.println("<select name='lang'>");
+  client.print("<option value='0'"); if(config.lang == 0) client.print(" selected"); client.println(">Deutsch (German)</option>");
+  client.print("<option value='1'"); if(config.lang == 1) client.print(" selected"); client.println(">English</option>");
+  client.println("</select>");
+
   client.println("<label>UTC Offset (seconds, e.g. 7200 = CEST)</label>");
   client.print("<input type='number' name='utc_offset' value='"); client.print(config.utc_offset_sec); client.println("'>");
-  client.println("<label>Brightness (10 - 255)</label>");
+  client.println("<label>Brightness / Helligkeit (10 - 255)</label>");
   client.print("<input type='number' name='brightness' min='10' max='255' value='"); client.print(config.brightness); client.println("'>");
   client.println("</div>");
 
-  client.println("<button type='submit'>Save & Reboot</button>");
+  client.println("<button type='submit'>Save & Reboot / Speichern & Neustart</button>");
   client.println("</form>");
   client.println("<div class='info'>MatrixPortal M4 Smart Energy Display</div>");
   client.println("</div></body></html>");
@@ -938,13 +1008,13 @@ String formatPower(float watts) {
 // Display Rendering Modes
 // ----------------------------------------------------------------------
 
-// Access Point Setup Screen with Wi-Fi Icon
+// Access Point Setup Screen with Wi-Fi Symbol (Ohne klobigen Text)
 void drawAPScreen() {
   matrix.fillScreen(COLOR_BLACK);
   matrix.setTextWrap(false);
   matrix.setTextSize(1);
 
-  // Wi-Fi Icon centered at top
+  // Wi-Fi Symbol centered at top
   drawWifiIcon(28, 2, COLOR_CYAN);
 
   matrix.setTextColor(COLOR_WHITE);
@@ -1030,8 +1100,10 @@ void drawNormalScreen() {
   int year, month, day, wday;
   epochToDate(nowEpoch, year, month, day, wday);
 
-  // Weekday mapping for wday = (days + 4) % 7 (0=Su, 1=Mo, 2=Tu, 3=We, 4=Th, 5=Fr, 6=Sa)
-  const char* wdays[] = {"So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."};
+  // Dynamic Weekday Arrays for German / English
+  const char* wdaysDE[] = {"So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."};
+  const char* wdaysEN[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  const char* dayStr    = (config.lang == 0) ? wdaysDE[wday] : wdaysEN[wday];
 
   // 1. Time (Cyan, y=2) & Wi-Fi Icon (top right, y=2, x=54)
   matrix.setTextColor(COLOR_CYAN);
@@ -1044,10 +1116,10 @@ void drawNormalScreen() {
   // Wi-Fi Symbol (Green = Connected, Red = Disconnected)
   drawWifiIcon(54, 2, WiFi.status() == WL_CONNECTED ? COLOR_GREEN : COLOR_RED);
 
-  // 2. Date & Weekday (White, y=11) -> "Mo. 3.8.26"
+  // 2. Date & Weekday (White, y=11) -> "Mo. 3.8.26" / "Mon 3.8.26"
   matrix.setTextColor(COLOR_WHITE);
   char dateBuf[16];
-  sprintf(dateBuf, "%s %d.%d.%02d", wdays[wday], day, month, year % 100);
+  sprintf(dateBuf, "%s %d.%d.%02d", dayStr, day, month, year % 100);
   
   int textWidth = strlen(dateBuf) * 6;
   int xPos = (64 - textWidth) / 2;
@@ -1073,10 +1145,10 @@ void drawNormalScreen() {
 
   matrix.drawFastHLine(0, 43, 64, COLOR_GRAY);
 
-  // 4. Grid Power (y=46..55) -> Uniform "NETZ" header
+  // 4. Grid Power (y=46..55) -> "NETZ" (DE) / "GRID" (EN)
   matrix.setCursor(2, 46);
   matrix.setTextColor(COLOR_CYAN);
-  matrix.print(F("NETZ"));
+  matrix.print((config.lang == 0) ? F("NETZ") : F("GRID"));
 
   matrix.setCursor(2, 55);
   if (gridOk) {
@@ -1123,18 +1195,15 @@ void setup() {
     Serial.println(F("[WLAN] No SSID saved. Starting Access Point Mode..."));
     isAPMode = true;
   } else {
-    matrix.fillScreen(COLOR_BLACK);
-    drawWifiIcon(28, 25, COLOR_CYAN);
-    matrix.show();
-
     Serial.print(F("[WLAN] Connecting to SSID: '"));
     Serial.print(config.wifi_ssid);
     Serial.println(F("'"));
 
     WiFi.begin(config.wifi_ssid, config.wifi_pass);
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 25) {
-      delay(500);
+    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+      drawWifiConnectingScreen(attempts);
+      delay(350);
       Serial.print(".");
       attempts++;
     }

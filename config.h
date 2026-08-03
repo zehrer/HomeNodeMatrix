@@ -14,10 +14,11 @@ struct ConfigData {
   char inverter_path[64];
   int utc_offset_sec;
   uint8_t brightness;
+  uint8_t lang; // 0 = DE (German), 1 = EN (English)
 };
 
 // Magic number for EEPROM validation
-const uint32_t CONFIG_MAGIC = 0x484E4D32; // "HNM2"
+const uint32_t CONFIG_MAGIC = 0x484E4D33; // "HNM3"
 
 // Default Configuration Settings
 const ConfigData defaultConfig = {
@@ -29,7 +30,8 @@ const ConfigData defaultConfig = {
   "192.168.178.24",              // inverter_ip (Fronius Solar Inverter)
   "/solar_api/v1/GetPowerFlowRealtimeData.fcgi", // inverter_path (Fronius Solar API v1)
   7200,                           // utc_offset_sec (CEST = UTC + 2 hours = 7200 sec)
-  200                             // brightness (0 - 255)
+  200,                            // brightness (0 - 255)
+  0                               // lang: 0 = DE (German), 1 = EN (English)
 };
 
 // Access Point Settings
