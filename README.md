@@ -6,19 +6,34 @@ It fetches real-time solar generation data from your photovoltaic system (**Fron
 
 ---
 
+## 💾 Instant Drag-and-Drop Installation (No Code / IDE Required!)
+
+You can instantly test HomeNodeMatrix without installing Arduino IDE or compiling code:
+
+1. **Download [`HomeNodeMatrix.uf2`](HomeNodeMatrix.uf2)** from this repository.
+2. Connect your **Adafruit MatrixPortal M4** to your computer via USB.
+3. **Double-click the RESET button** on the back of the MatrixPortal M4.
+4. The board will appear on your computer as a USB drive named **`MATRIXBOOT`** (or **`PORTALBOOT`**).
+5. Drag and drop **`HomeNodeMatrix.uf2`** onto the **`MATRIXBOOT`** drive.
+6. The board will automatically flash and reboot! 🎉
+
+---
+
 ## 🌟 Features
 
-- **Time & Date Display**: Precise NTP clock synchronization and dynamic weekday calculation (`Mo. 3.8.26`).
+- **Time & Date Display**: Precise NTP clock synchronization and dynamic weekday calculation (`Mo. 3.8.26` / `Mon 3.8.26`).
 - **Solar Generation (`SOLAR`)**: Real-time PV power readings using the **Fronius Solar API v1** (`/solar_api/v1/GetPowerFlowRealtimeData.fcgi`).
-- **Grid Power (`NETZ`)**: Live grid import and export readings using the **Shelly Gen2 HTTP API** (`/rpc/Shelly.GetStatus`).
+- **Grid Power (`NETZ` / `GRID`)**: Live grid import and export readings using the **Shelly Gen2 HTTP API** (`/rpc/Shelly.GetStatus`).
+- **Animated Boot Connection Screen**: Clean Wi-Fi icon with a ring of 8 yellow dots filling up clockwise to indicate connection progress (no text).
 - **Wi-Fi Access Point & Captive Portal**:
-  - Automatic setup hotspot (`HomeNodeMatrix-Setup`) if no saved Wi-Fi is reachable.
+  - Automatically transitions to setup hotspot mode (`HomeNodeMatrix-Setup`) if connection is not established.
   - Displays a random **8-digit PIN** directly on the 64x64 LED matrix.
   - Automatic DNS Captive Portal redirect to `http://192.168.4.1/`.
-- **Dark Mode Web Configuration Page**: Easily configure Wi-Fi credentials, IP addresses, API endpoints, UTC offset, and display brightness via any web browser.
+- **Multi-Language Support**: German (`de`) and English (`en`) selectable via Web UI or Serial CLI.
+- **Dark Mode Web Configuration Page**: Easily configure Wi-Fi credentials, IP addresses, API endpoints, language, UTC offset, and display brightness via any web browser.
 - **Serial Command Line Interface (CLI)**:
   - Full-featured interactive serial console over USB (compatible with Chrome Web Serial Terminal).
-  - Commands: `status`, `debug on/off`, `mode normal/status/dust`, `wifi`, `shelly`, `inverter`, `brightness`, `save`, `reset`, `reboot`.
+  - Commands: `status`, `debug on/off`, `mode normal/status/dust`, `lang de/en`, `wifi`, `shelly`, `inverter`, `brightness`, `save`, `reset`, `reboot`.
   - Mutable background debug logging (`debug off`) to keep the CLI prompt pristine while typing.
 - **On-Board Hardware Button Controls**:
   - **UP Button**: Toggles the **Status Screen** (showing Matrix Portal IP, Shelly IP, and Fronius IP using an ultra-compact 3x5 pixel font).
@@ -35,7 +50,7 @@ It fetches real-time solar generation data from your photovoltaic system (**Fron
 
 ---
 
-## 🚀 Building & Flashing
+## 🚀 Building & Flashing from Source
 
 Using `arduino-cli`:
 
@@ -43,7 +58,7 @@ Using `arduino-cli`:
 # Compile
 arduino-cli compile --fqbn adafruit:samd:adafruit_matrixportal_m4 .
 
-# Upload
+# Upload directly via USB
 arduino-cli upload -p /dev/cu.usbmodem1101 --fqbn adafruit:samd:adafruit_matrixportal_m4 .
 ```
 
@@ -56,6 +71,7 @@ Connect at `115200` baud (e.g. via [Chrome Serial Terminal](https://googlechrome
 | Command | Description |
 | :--- | :--- |
 | `status` | Display current network status and configuration |
+| `lang de` / `lang en` | Switch language between German and English |
 | `debug on` / `debug off` | Enable or disable background live debug log output |
 | `mode normal` / `status` / `dust` | Switch display mode (Clock/Energy, Status Info, PixelDust) |
 | `wifi <ssid> <password>` | Configure Wi-Fi credentials |
