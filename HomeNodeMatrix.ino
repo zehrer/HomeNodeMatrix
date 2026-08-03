@@ -1,40 +1,39 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
-  Smart Energy & Time Display mit Web-Konfiguration & Serial CLI
-  - Korrigierter Wochentags-Array Index (0=So, 1=Mo, ..., 4=Do) für exakte NTP-Tage
-  - Überschriften: SOLAR & NETZ (kein Bezug / Einspeisung Text mehr)
-  - Kompakter 3x5 Pixel-Font für 15-stellige IP-Adressen (z.B. 192.168.178.154)
-  - Helligkeitssteuerung via Farbskalierung (updateColors) via Web, CLI & Flash
-  - Taste UP   -> Status-Bildschirm (Matrix IP, Shelly IP & Fronius IP)
-  - Taste DOWN -> PixelDust Sand-Physik-Demo (LIS3DH Accelerometer)
+  Smart Energy & Time Display with Web Configuration & Serial CLI
+  - English Documentation & Code Comments
+  - Ultra-compact 3x5 Pixel Font for 15-char IP addresses (e.g. 192.168.178.154)
+  - Dynamic Brightness Control via Web, CLI & Flash persistence
+  - UP Button   -> Status Screen (Matrix IP, Shelly IP & Fronius IP)
+  - DOWN Button -> PixelDust Sand Physics Demo (LIS3DH Accelerometer)
   ---------------------------------------------------------------------- */
 
 #include <Wire.h>
 #include <SPI.h>
-#include <WiFiNINA.h>             // Wi-Fi Treiber für ESP32 AirLift
+#include <WiFiNINA.h>             // Wi-Fi driver for ESP32 AirLift
 #include <WiFiUdp.h>
-#include <FlashStorage_SAMD.h>    // Flash / EEPROM Speicher für SAMD51
-#include <Adafruit_GFX.h>         // Grafikbibliothek
-#include <Adafruit_Protomatter.h> // Matrix Display Treiber
-#include <Adafruit_LIS3DH.h>      // Beschleunigungssensor
-#include <Adafruit_PixelDust.h>   // PixelDust Sand-Simulation
-#include <ArduinoJson.h>          // JSON Parser (v7)
+#include <FlashStorage_SAMD.h>    // Flash / EEPROM storage for SAMD51
+#include <Adafruit_GFX.h>         // Graphics library
+#include <Adafruit_Protomatter.h> // RGB Matrix display driver
+#include <Adafruit_LIS3DH.h>      // On-board accelerometer
+#include <Adafruit_PixelDust.h>   // Particle physics simulation
+#include <ArduinoJson.h>          // JSON parser (v7)
 #include "config.h"
 
 // ----------------------------------------------------------------------
 // Hardware Pins (Adafruit MatrixPortal M4)
 // ----------------------------------------------------------------------
 uint8_t rgbPins[]  = {7, 8, 9, 10, 11, 12};
-uint8_t addrPins[] = {17, 18, 19, 20, 21}; // 5 Address Pins für 64x64
+uint8_t addrPins[] = {17, 18, 19, 20, 21}; // 5 Address Pins for 64x64 matrix
 uint8_t clockPin   = 14;
 uint8_t latchPin   = 15;
 uint8_t oePin      = 16;
 
-#define BUTTON_UP_PIN   2 // Taste UP auf MatrixPortal M4
-#define BUTTON_DOWN_PIN 3 // Taste DOWN auf MatrixPortal M4
+#define BUTTON_UP_PIN   2 // UP Button on MatrixPortal M4
+#define BUTTON_DOWN_PIN 3 // DOWN Button on MatrixPortal M4
 
 #if defined(ADAFRUIT_MATRIXPORTAL_M4) || defined(_VARIANT_MATRIXPORTAL_M4_)
-  // Board-Definitionen von Adafruit SAMD Core
+  // Board definitions from Adafruit SAMD Core
 #else
   #define SPIWIFI       SPI
   #define SPIWIFI_SS    33
@@ -43,12 +42,12 @@ uint8_t oePin      = 16;
   #define ESP32_GPIO0   -1
 #endif
 
-// Protomatter Matrix Instanz (64x64, 4 Bit Farbtiefe)
+// Protomatter Matrix Instance (64x64, 4-bit color depth)
 Adafruit_Protomatter matrix(
   64, 4, 1, rgbPins, 5, addrPins,
   clockPin, latchPin, oePin, true);
 
-// LIS3DH Beschleunigungssensor & PixelDust Sand Simulation
+// LIS3DH Accelerometer & PixelDust Sand Simulation Instance
 Adafruit_LIS3DH accel = Adafruit_LIS3DH();
 bool accelOk = false;
 
@@ -72,7 +71,7 @@ bool lastUpState = HIGH;
 bool lastDownState = HIGH;
 unsigned long lastButtonCheck = 0;
 
-// Farndefinitionen
+// Color Definitions
 uint16_t COLOR_BLACK;
 uint16_t COLOR_WHITE;
 uint16_t COLOR_GRAY;
@@ -83,16 +82,16 @@ uint16_t COLOR_CYAN;
 uint16_t COLOR_BLUE;
 uint16_t COLOR_ORANGE;
 
-// Globaler Speicher für Konfiguration
+// Configuration Storage
 ConfigData config;
 
-// Status- & Server-Variablen
+// Status & Server Variables
 WiFiServer webServer(80);
 WiFiUDP ntpUdp;
 WiFiUDP dnsUdp;
 bool isAPMode = false;
-bool debugMode = false; // Debug-Ausgaben standardmäßig aus (CLI bleibt sauber)
-char ap_password[9] = "84729103"; // 8-stellige dynamische PIN
+bool debugMode = false; // Background debug logging OFF by default (keeps CLI clean)
+char ap_password[9] = "84729103"; // 8-digit random PIN
 IPAddress apIPAddress(192, 168, 4, 1);
 int apStatus = WL_IDLE_STATUS;
 
@@ -101,23 +100,23 @@ unsigned long lastShellyAttempt = 0;
 unsigned long lastInverterAttempt = 0;
 unsigned long lastDisplayRedraw = 0;
 
-const unsigned long POLL_ONLINE_MS    = 3000;  // 3 Sek bei aktiver Verbindung
-const unsigned long RETRY_OFFLINE_MS = 30000; // 30 Sek Warten bei Verbindungsfehler
+const unsigned long POLL_ONLINE_MS    = 3000;  // Poll every 3 sec when target is online
+const unsigned long RETRY_OFFLINE_MS = 30000; // Back off 30 sec when target is offline
 
-// Zeitvariablen
+// Time Variables
 unsigned long localUnixTime = 0;
 unsigned long lastTimeSyncMs = 0;
 
-// Leistungswerte
+// Power Values
 float solarPowerW = 0.0;
-float gridPowerW  = 0.0; // Negativ = Einspeisung, Positiv = Bezug
+float gridPowerW  = 0.0; // Negative = Feed-in (Export), Positive = Import
 bool solarOk = false;
 bool gridOk  = false;
 
-// Serial CLI Puffer
+// Serial CLI Buffer
 String serialBuffer = "";
 
-// Helper für bedingte Debug-Ausgaben
+// Helper for conditional debug logging
 void logDebug(const String& msg) {
   if (debugMode) {
     Serial.println(msg);
@@ -125,7 +124,7 @@ void logDebug(const String& msg) {
 }
 
 // ----------------------------------------------------------------------
-// Farbskalierung nach Helligkeit (0-255)
+// Dynamic Color Scaling for Brightness Control (0-255)
 // ----------------------------------------------------------------------
 void updateColors() {
   uint32_t b = config.brightness; // 10 .. 255
@@ -146,7 +145,7 @@ void applyBrightness(uint8_t b) {
 }
 
 // ----------------------------------------------------------------------
-// Ultra-Kompakter 3x5 Pixel Font für 15-stellige IP-Adressen (Ziffern 0-9 & '.')
+// Ultra-Compact 3x5 Pixel Font for 15-char IP Addresses (Digits 0-9 & '.')
 // ----------------------------------------------------------------------
 const uint8_t font3x5[][5] PROGMEM = {
   {0b111, 0b101, 0b101, 0b101, 0b111}, // 0
@@ -182,33 +181,33 @@ void drawTinyString(int16_t x, int16_t y, const String& str, uint16_t color) {
     char c = str.charAt(i);
     if (c == '.') {
       drawTinyChar(curX, y, c, color);
-      curX += 3; // Punkt ist 2px + 1px Abstand
+      curX += 3; // Dot is 2px + 1px spacing
     } else {
       drawTinyChar(curX, y, c, color);
-      curX += 4; // Ziffer ist 3px + 1px Abstand
+      curX += 4; // Digit is 3px + 1px spacing
     }
   }
 }
 
 // ----------------------------------------------------------------------
-// Wi-Fi Pixel Icon Zeichner (8x7 Pixel)
+// Wi-Fi Pixel Icon Renderer (8x7 Pixels)
 // ----------------------------------------------------------------------
 void drawWifiIcon(int16_t x, int16_t y, uint16_t color) {
-  matrix.fillRect(x + 3, y + 6, 2, 2, color);  // Punkt (unten)
-  matrix.drawPixel(x + 1, y + 4, color);      // Mittlerer Bogen
+  matrix.fillRect(x + 3, y + 6, 2, 2, color);  // Bottom Dot
+  matrix.drawPixel(x + 1, y + 4, color);      // Inner Arc
   matrix.drawFastHLine(x + 2, y + 3, 4, color);
   matrix.drawPixel(x + 6, y + 4, color);
-  matrix.drawPixel(x + 0, y + 1, color);      // Äußerer Bogen
+  matrix.drawPixel(x + 0, y + 1, color);      // Outer Arc
   matrix.drawFastHLine(x + 1, y + 0, 6, color);
   matrix.drawPixel(x + 7, y + 1, color);
 }
 
-// Datumsberechnung aus Unix Epoch
+// Date calculation from Unix Epoch
 void epochToDate(unsigned long epoch, int &year, int &month, int &day, int &wday) {
   unsigned long days = epoch / 86400L;
-  wday = (days + 4) % 7; // 0=So, 1=Mo, 2=Di, 3=Mi, 4=Do, 5=Fr, 6=Sa
+  wday = (days + 4) % 7; // 0=Su, 1=Mo, 2=Tu, 3=We, 4=Th, 5=Fr, 6=Sa
 
-  long d = days - 10957; // Tage seit 2000-01-01
+  long d = days - 10957; // Days since 2000-01-01
   if (d < 0) d = 0;
 
   long y4 = d / 1461;
@@ -237,12 +236,12 @@ void epochToDate(unsigned long epoch, int &year, int &month, int &day, int &wday
 }
 
 // ----------------------------------------------------------------------
-// PixelDust Sand Simulation Initialisierung & Frame Rendering
+// PixelDust Sand Simulation Initialization & Frame Rendering
 // ----------------------------------------------------------------------
 void initPixelDust() {
   if (pixelDustInitialized) return;
   if (!sand.begin()) {
-    Serial.println(F("[PixelDust] Fehler beim Starten von Sand!"));
+    Serial.println(F("[PixelDust] Error starting sand simulation!"));
     return;
   }
 
@@ -267,7 +266,7 @@ void initPixelDust() {
   dustColors[7] = matrix.color565(117, 7, 135);  // Purple
 
   pixelDustInitialized = true;
-  Serial.println(F("[PixelDust] Simulation erfolgreich initialisiert!"));
+  Serial.println(F("[PixelDust] Simulation initialized successfully!"));
 }
 
 void runPixelDustFrame() {
@@ -299,7 +298,7 @@ void runPixelDustFrame() {
   matrix.show();
 }
 
-// Tastenverarbeitung (UP -> Status Bildschirm, DOWN -> PixelDust Sand Demo)
+// Hardware Button Handler (UP -> Status Screen, DOWN -> PixelDust Sand Demo)
 void handleButtons() {
   if (millis() - lastButtonCheck < 50) return;
   lastButtonCheck = millis();
@@ -310,21 +309,21 @@ void handleButtons() {
   if (lastUpState == HIGH && currentUpState == LOW) {
     if (currentMode == MODE_STATUS) {
       currentMode = MODE_NORMAL;
-      Serial.println(F("\n[Taste UP] -> Hauptbildschirm (Uhr & Energie)"));
+      Serial.println(F("\n[Button UP] -> Normal Screen (Clock & Energy)"));
     } else {
       currentMode = MODE_STATUS;
-      Serial.println(F("\n[Taste UP] -> Status-Bildschirm (IP & Netz)"));
+      Serial.println(F("\n[Button UP] -> Status Screen (IP Info)"));
     }
   }
 
   if (lastDownState == HIGH && currentDownState == LOW) {
     if (currentMode == MODE_PIXELDUST) {
       currentMode = MODE_NORMAL;
-      Serial.println(F("\n[Taste DOWN] -> Hauptbildschirm (Uhr & Energie)"));
+      Serial.println(F("\n[Button DOWN] -> Normal Screen (Clock & Energy)"));
     } else {
       currentMode = MODE_PIXELDUST;
       initPixelDust();
-      Serial.println(F("\n[Taste DOWN] -> PixelDust Sand-Physik-Demo"));
+      Serial.println(F("\n[Button DOWN] -> PixelDust Sand Physics Demo"));
     }
   }
 
@@ -333,7 +332,7 @@ void handleButtons() {
 }
 
 // ----------------------------------------------------------------------
-// Captive Portal DNS Server (DNS-Anfragen abfangen & umleiten)
+// Captive Portal DNS Server (Intercepts DNS queries in AP mode)
 // ----------------------------------------------------------------------
 void processDNS() {
   int packetSize = dnsUdp.parsePacket();
@@ -355,11 +354,11 @@ void processDNS() {
   packetBuffer[replyLen++] = 0x01;
   packetBuffer[replyLen++] = 0x00; // Class IN
   packetBuffer[replyLen++] = 0x01;
-  packetBuffer[replyLen++] = 0x00; // TTL (60 Sek)
+  packetBuffer[replyLen++] = 0x00; // TTL (60 sec)
   packetBuffer[replyLen++] = 0x00;
   packetBuffer[replyLen++] = 0x00;
   packetBuffer[replyLen++] = 0x3C;
-  packetBuffer[replyLen++] = 0x00; // RDLENGTH = 4 Byte
+  packetBuffer[replyLen++] = 0x00; // RDLENGTH = 4 bytes
   packetBuffer[replyLen++] = 0x04;
   packetBuffer[replyLen++] = 192;  // IP: 192.168.4.1
   packetBuffer[replyLen++] = 168;
@@ -370,7 +369,7 @@ void processDNS() {
   dnsUdp.write(packetBuffer, replyLen);
   dnsUdp.endPacket();
 
-  logDebug(String(F("[DNS] Umleitung an 192.168.4.1 für Anfrager")));
+  logDebug(String(F("[DNS] Redirected to 192.168.4.1 for client")));
 }
 
 // ----------------------------------------------------------------------
@@ -397,17 +396,17 @@ String urlDecode(String input) {
 }
 
 // ----------------------------------------------------------------------
-// Flash Lade- & Speicherfunktionen (SAMD51)
+// Flash Storage Read/Write Functions (SAMD51 EEPROM Emulation)
 // ----------------------------------------------------------------------
 void loadConfig() {
   EEPROM.get(0, config);
   if (config.magic != CONFIG_MAGIC) {
-    Serial.println(F("[Config] EEPROM ungültig oder neu. Lade Standardwerte..."));
+    Serial.println(F("[Config] Invalid or new EEPROM. Loading default values..."));
     config = defaultConfig;
     EEPROM.put(0, config);
     EEPROM.commit();
   } else {
-    Serial.println(F("[Config] Konfiguration erfolgreich geladen."));
+    Serial.println(F("[Config] Configuration loaded successfully."));
   }
 }
 
@@ -415,7 +414,7 @@ void saveConfig() {
   config.magic = CONFIG_MAGIC;
   EEPROM.put(0, config);
   EEPROM.commit();
-  Serial.println(F("[Config] Konfiguration erfolgreich im Flash gespeichert."));
+  Serial.println(F("[Config] Configuration saved to Flash storage."));
 }
 
 void showStatus() {
@@ -426,40 +425,40 @@ void showStatus() {
   Serial.print(F(" Display Mode:  ")); 
   if (currentMode == MODE_PIXELDUST) Serial.println("PIXEL DUST DEMO");
   else if (currentMode == MODE_STATUS) Serial.println("STATUS SCREEN");
-  else Serial.println("UHR & ENERGIE");
-  Serial.print(F(" WLAN Status:   ")); Serial.println(WiFi.status() == WL_CONNECTED ? "VERBUNDEN" : "DISCONNECTED");
-  Serial.print(F(" Debug Log:     ")); Serial.println(debugMode ? "AN (ON)" : "AUS (OFF)");
-  Serial.print(F(" WLAN SSID:     '")); Serial.print(config.wifi_ssid); Serial.println(F("'"));
-  Serial.print(F(" WLAN Pass:     '")); Serial.print(config.wifi_pass); Serial.println(F("'"));
+  else Serial.println("CLOCK & ENERGY");
+  Serial.print(F(" Wi-Fi Status:  ")); Serial.println(WiFi.status() == WL_CONNECTED ? "CONNECTED" : "DISCONNECTED");
+  Serial.print(F(" Debug Log:     ")); Serial.println(debugMode ? "ON" : "OFF");
+  Serial.print(F(" Wi-Fi SSID:    '")); Serial.print(config.wifi_ssid); Serial.println(F("'"));
+  Serial.print(F(" Wi-Fi Pass:    '")); Serial.print(config.wifi_pass); Serial.println(F("'"));
   Serial.print(F(" Shelly IP:     '")); Serial.print(config.shelly_ip); Serial.println(F("'"));
   Serial.print(F(" Shelly Path:   '")); Serial.print(config.shelly_path); Serial.println(F("'"));
   Serial.print(F(" Inverter IP:   '")); Serial.print(config.inverter_ip); Serial.println(F("'"));
   Serial.print(F(" Inverter Path: '")); Serial.print(config.inverter_path); Serial.println(F("'"));
-  Serial.print(F(" UTC Offset:    ")); Serial.print(config.utc_offset_sec); Serial.println(F(" sek"));
-  Serial.print(F(" Helligkeit:    ")); Serial.println(config.brightness);
-  Serial.print(F(" IP Adresse:    ")); Serial.println(isAPMode ? apIPAddress : WiFi.localIP());
+  Serial.print(F(" UTC Offset:    ")); Serial.print(config.utc_offset_sec); Serial.println(F(" sec"));
+  Serial.print(F(" Brightness:    ")); Serial.println(config.brightness);
+  Serial.print(F(" IP Address:    ")); Serial.println(isAPMode ? apIPAddress : WiFi.localIP());
   Serial.println(F("==================================================\n"));
 }
 
 void printHelp() {
-  Serial.println(F("\n--- HomeNodeMatrix Serial CLI Befehle ---"));
-  Serial.println(F(" status                - Zeigt aktuellen Status & Einstellungen an"));
-  Serial.println(F(" mode normal / status / dust - Wechselt den Display-Modus"));
-  Serial.println(F(" brightness <10-255>   - Stellt die Display-Helligkeit ein (z.B. brightness 100)"));
-  Serial.println(F(" debug on / debug off  - Schaltet Live-Debug-Logs an oder aus"));
-  Serial.println(F(" wifi <ssid> <pass>    - Setzt WLAN Name und Passwort"));
-  Serial.println(F(" shelly <ip> [pfad]    - Setzt Shelly 3Pro IP-Adresse"));
-  Serial.println(F(" inverter <ip> [pfad]  - Setzt Wechselrichter IP-Adresse"));
-  Serial.println(F(" utc <offset>          - Setzt GMT Offset in Sekunden (7200 = MESZ)"));
-  Serial.println(F(" save                  - Speichert Einstellungen im Flash Speicher"));
-  Serial.println(F(" reset                 - Setzt Einstellungen auf Werkseinstellungen zurück"));
-  Serial.println(F(" reboot                - Führt einen Hardware-Neustart durch"));
-  Serial.println(F(" help / ?              - Zeigt dieses Hilfemenü an\n"));
+  Serial.println(F("\n--- HomeNodeMatrix Serial CLI Commands ---"));
+  Serial.println(F(" status                - Print current configuration & status"));
+  Serial.println(F(" mode normal/status/dust - Switch active display mode"));
+  Serial.println(F(" brightness <10-255>   - Adjust display brightness (e.g. brightness 100)"));
+  Serial.println(F(" debug on / debug off  - Enable or disable background live debug logs"));
+  Serial.println(F(" wifi <ssid> <pass>    - Set Wi-Fi network credentials"));
+  Serial.println(F(" shelly <ip> [path]    - Set Shelly 3Pro IP address and API path"));
+  Serial.println(F(" inverter <ip> [path]  - Set Fronius inverter IP address and API path"));
+  Serial.println(F(" utc <offset>          - Set GMT offset in seconds (e.g. 7200 for CEST)"));
+  Serial.println(F(" save                  - Save settings to Flash memory"));
+  Serial.println(F(" reset                 - Restore factory default settings"));
+  Serial.println(F(" reboot                - Perform hardware system reset"));
+  Serial.println(F(" help / ?              - Show this help menu\n"));
   Serial.print(F("CLI> "));
 }
 
 // ----------------------------------------------------------------------
-// Serial CLI (Kommandozeilen-Interface)
+// Serial Command Line Interface (CLI) Handler
 // ----------------------------------------------------------------------
 void handleSerialCLI() {
   while (Serial.available() > 0) {
@@ -489,24 +488,24 @@ void handleSerialCLI() {
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("mode status")) {
           currentMode = MODE_STATUS;
-          Serial.println(F("[CLI] Status-Bildschirm AKTIVIERT!"));
+          Serial.println(F("[CLI] Status screen ENABLED!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("mode dust") || serialBuffer.equals("pixeldust")) {
           currentMode = MODE_PIXELDUST;
           initPixelDust();
-          Serial.println(F("[CLI] PixelDust Sand-Demo AKTIVIERT!"));
+          Serial.println(F("[CLI] PixelDust sand demo ENABLED!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("mode normal")) {
           currentMode = MODE_NORMAL;
-          Serial.println(F("[CLI] Hauptbildschirm (Uhr & Energie) AKTIVIERT!"));
+          Serial.println(F("[CLI] Main display (Clock & Energy) ENABLED!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("debug on") || serialBuffer.equals("debug 1")) {
           debugMode = true;
-          Serial.println(F("[CLI] Live-Debug-Logs AKTIVIERT (on)"));
+          Serial.println(F("[CLI] Live debug logging ENABLED (on)"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("debug off") || serialBuffer.equals("debug 0")) {
           debugMode = false;
-          Serial.println(F("[CLI] Live-Debug-Logs DEAKTIVIERT (off) - CLI bleibt sauber!"));
+          Serial.println(F("[CLI] Live debug logging DISABLED (off) - CLI stays clean!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.startsWith("wifi ")) {
           int space1 = serialBuffer.indexOf(' ');
@@ -517,7 +516,7 @@ void handleSerialCLI() {
             ssid.toCharArray(config.wifi_ssid, sizeof(config.wifi_ssid));
             pass.toCharArray(config.wifi_pass, sizeof(config.wifi_pass));
             saveConfig();
-            Serial.println(F("[CLI] WLAN Einstellungen aktualisiert & gespeichert!"));
+            Serial.println(F("[CLI] Wi-Fi credentials updated & saved!"));
             showStatus();
           }
           Serial.print(F("CLI> "));
@@ -532,7 +531,7 @@ void handleSerialCLI() {
               path.toCharArray(config.shelly_path, sizeof(config.shelly_path));
             }
             saveConfig();
-            Serial.println(F("[CLI] Shelly Einstellungen aktualisiert & gespeichert!"));
+            Serial.println(F("[CLI] Shelly settings updated & saved!"));
           }
           Serial.print(F("CLI> "));
         } else if (serialBuffer.startsWith("inverter ")) {
@@ -546,20 +545,20 @@ void handleSerialCLI() {
               path.toCharArray(config.inverter_path, sizeof(config.inverter_path));
             }
             saveConfig();
-            Serial.println(F("[CLI] Wechselrichter Einstellungen aktualisiert & gespeichert!"));
+            Serial.println(F("[CLI] Inverter settings updated & saved!"));
           }
           Serial.print(F("CLI> "));
         } else if (serialBuffer.startsWith("utc ")) {
           config.utc_offset_sec = serialBuffer.substring(4).toInt();
           saveConfig();
-          Serial.println(F("[CLI] UTC Offset aktualisiert!"));
+          Serial.println(F("[CLI] UTC offset updated!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.startsWith("brightness ") || serialBuffer.startsWith("b ")) {
           int spacePos = serialBuffer.indexOf(' ');
           int val = serialBuffer.substring(spacePos + 1).toInt();
           applyBrightness(val);
           saveConfig();
-          Serial.println(String(F("[CLI] Display-Helligkeit gesetzt auf: ")) + config.brightness);
+          Serial.println(String(F("[CLI] Display brightness set to: ")) + config.brightness);
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("save")) {
           saveConfig();
@@ -568,14 +567,14 @@ void handleSerialCLI() {
           config = defaultConfig;
           applyBrightness(config.brightness);
           saveConfig();
-          Serial.println(F("[CLI] Einstellungen auf Werkseinstellungen zurückgesetzt!"));
+          Serial.println(F("[CLI] Reset configuration to factory defaults!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("reboot")) {
-          Serial.println(F("[CLI] Neustart wird durchgeführt..."));
+          Serial.println(F("[CLI] Rebooting system..."));
           delay(500);
           NVIC_SystemReset();
         } else {
-          Serial.println(F("Unbekannter Befehl. Tippe 'help' für Befehlsübersicht."));
+          Serial.println(F("Unknown command. Type 'help' for command summary."));
           Serial.print(F("CLI> "));
         }
       } else {
@@ -589,13 +588,13 @@ void handleSerialCLI() {
 }
 
 // ----------------------------------------------------------------------
-// HTML Konfigurationsseite (Shelly-Style Dark Theme) & Webserver
+// HTML Configuration Web Page (Dark Theme) & Webserver Handler
 // ----------------------------------------------------------------------
 void handleWebClient() {
   WiFiClient client = webServer.available();
   if (!client) return;
 
-  logDebug(F("\n>>> [Web] Client hat sich mit dem Webserver verbunden!"));
+  logDebug(F("\n>>> [Web] Client connected to web server!"));
 
   String requestHeader = "";
   String requestBody = "";
@@ -643,11 +642,11 @@ void handleWebClient() {
     }
   }
 
-  logDebug(String(F("[Web] Anfrage-Zeile: ")) + firstLine);
+  logDebug(String(F("[Web] Request line: ")) + firstLine);
 
-  // POST Request (Formular verarbeiten & Speichern)
+  // POST Request (Process form submission & save)
   if (isPost && requestBody.length() > 0) {
-    logDebug(F("[Web] POST Formulardaten empfangen:"));
+    logDebug(F("[Web] POST body received:"));
     logDebug(requestBody);
 
     int paramPos = 0;
@@ -683,22 +682,22 @@ void handleWebClient() {
     client.println("body{background:#121212;color:#fff;font-family:sans-serif;text-align:center;padding-top:50px;}");
     client.println(".card{background:#1e1e1e;max-width:400px;margin:auto;padding:30px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.5);}");
     client.println("h2{color:#00e676;}</style></head><body>");
-    client.println("<div class='card'><h2>Einstellungen gespeichert!</h2>");
-    client.println("<p>Das MatrixPortal startet jetzt neu und verbindet sich mit dem WLAN...</p>");
-    client.println("<p>Bitte 10 Sekunden warten.</p></div></body></html>");
+    client.println("<div class='card'><h2>Settings Saved!</h2>");
+    client.println("<p>MatrixPortal is rebooting and connecting to Wi-Fi...</p>");
+    client.println("<p>Please wait 10 seconds.</p></div></body></html>");
     client.flush();
     delay(10);
     client.stop();
 
-    Serial.println(F("[Web] Einstellungen gespeichert. Führe Hardware-Reset durch..."));
+    Serial.println(F("[Web] Settings saved. Executing hardware reset..."));
     delay(1000);
     NVIC_SystemReset();
     return;
   }
 
-  // Captive Portal Auto-Popup Redirect für externe Host-Anfragen
+  // Captive Portal Auto-Popup Redirect
   if (isAPMode && firstLine.indexOf("192.168.4.1") == -1 && firstLine.indexOf("GET / ") == -1) {
-    logDebug(F("[Web] Captive Portal Redirect an http://192.168.4.1/"));
+    logDebug(F("[Web] Captive Portal Redirect to http://192.168.4.1/"));
     client.println("HTTP/1.1 302 Found");
     client.println("Location: http://192.168.4.1/");
     client.println("Connection: close");
@@ -709,8 +708,8 @@ void handleWebClient() {
     return;
   }
 
-  // GET Request (HTML Konfigurationsseite ausgeben)
-  logDebug(F("[Web] Sende Konfigurations-Webseite an den Client..."));
+  // GET Request (Render HTML Configuration Form)
+  logDebug(F("[Web] Sending configuration web page..."));
 
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: text/html; charset=utf-8");
@@ -734,35 +733,35 @@ void handleWebClient() {
   client.println("<div class='container'><h1>HomeNodeMatrix Setup</h1>");
   client.println("<form method='POST' action='/save'>");
 
-  client.println("<div class='section'><h2>WLAN Einstellungen</h2>");
-  client.println("<label>WLAN Name (SSID)</label>");
+  client.println("<div class='section'><h2>Wi-Fi Settings</h2>");
+  client.println("<label>Wi-Fi Name (SSID)</label>");
   client.print("<input type='text' name='ssid' value='"); client.print(config.wifi_ssid); client.println("' required>");
-  client.println("<label>WLAN Passwort</label>");
+  client.println("<label>Wi-Fi Password</label>");
   client.print("<input type='password' name='pass' value='"); client.print(config.wifi_pass); client.println("'>");
   client.println("</div>");
 
-  client.println("<div class='section'><h2>Shelly 3Pro (Netz)</h2>");
-  client.println("<label>Shelly IP Adresse</label>");
+  client.println("<div class='section'><h2>Shelly 3Pro (Grid)</h2>");
+  client.println("<label>Shelly IP Address</label>");
   client.print("<input type='text' name='shelly_ip' value='"); client.print(config.shelly_ip); client.println("' required>");
-  client.println("<label>API Pfad</label>");
+  client.println("<label>API Path</label>");
   client.print("<input type='text' name='shelly_path' value='"); client.print(config.shelly_path); client.println("'>");
   client.println("</div>");
 
-  client.println("<div class='section'><h2>Wechselrichter (Fronius / OpenDTU)</h2>");
-  client.println("<label>Wechselrichter IP</label>");
+  client.println("<div class='section'><h2>Solar Inverter (Fronius / OpenDTU)</h2>");
+  client.println("<label>Inverter IP Address</label>");
   client.print("<input type='text' name='inverter_ip' value='"); client.print(config.inverter_ip); client.println("' required>");
-  client.println("<label>API Pfad</label>");
+  client.println("<label>API Path</label>");
   client.print("<input type='text' name='inverter_path' value='"); client.print(config.inverter_path); client.println("'>");
   client.println("</div>");
 
   client.println("<div class='section'><h2>System & Display</h2>");
-  client.println("<label>UTC Offset (Sekunden, z.B. 7200 = MESZ)</label>");
+  client.println("<label>UTC Offset (seconds, e.g. 7200 = CEST)</label>");
   client.print("<input type='number' name='utc_offset' value='"); client.print(config.utc_offset_sec); client.println("'>");
-  client.println("<label>Helligkeit (10 - 255)</label>");
+  client.println("<label>Brightness (10 - 255)</label>");
   client.print("<input type='number' name='brightness' min='10' max='255' value='"); client.print(config.brightness); client.println("'>");
   client.println("</div>");
 
-  client.println("<button type='submit'>Speichern & Neustarten</button>");
+  client.println("<button type='submit'>Save & Reboot</button>");
   client.println("</form>");
   client.println("<div class='info'>MatrixPortal M4 Smart Energy Display</div>");
   client.println("</div></body></html>");
@@ -771,11 +770,11 @@ void handleWebClient() {
   delay(10);
   client.stop();
 
-  logDebug(F("<<< [Web] Antwort vollständig gesendet. Client getrennt."));
+  logDebug(F("<<< [Web] Response sent completely. Client disconnected."));
 }
 
 // ----------------------------------------------------------------------
-// NTP Zeitabfrage über UDP (mit Timeout)
+// NTP Time Query via UDP (with Timeout)
 // ----------------------------------------------------------------------
 const int NTP_PACKET_SIZE = 48;
 byte packetBuffer[NTP_PACKET_SIZE];
@@ -809,7 +808,7 @@ unsigned long fetchNTPTime() {
 }
 
 // ----------------------------------------------------------------------
-// Abfrage Shelly 3Pro (Gen2 HTTP API)
+// Query Shelly 3Pro Meter (Gen2 HTTP API)
 // ----------------------------------------------------------------------
 void updateShellyData() {
   if (strlen(config.shelly_ip) == 0 || strcmp(config.shelly_ip, "0.0.0.0") == 0) {
@@ -820,7 +819,7 @@ void updateShellyData() {
   WiFiClient client;
   client.setTimeout(1000);
   if (!client.connect(config.shelly_ip, 80)) {
-    logDebug(F("[Netz] Shelly 3Pro nicht erreichbar. Warten..."));
+    logDebug(F("[Netz] Shelly 3Pro unreachable. Waiting..."));
     gridOk = false;
     return;
   }
@@ -854,15 +853,15 @@ void updateShellyData() {
     } else if (!doc["total_power"].isNull()) {
       gridPowerW = doc["total_power"].as<float>();
     }
-    logDebug("[Netz] Aktuelle Netzleistung (Shelly): " + String(gridPowerW) + " W");
+    logDebug("[Netz] Current grid power (Shelly): " + String(gridPowerW) + " W");
   } else {
-    logDebug("[Netz] Shelly JSON Fehler: " + String(err.c_str()));
+    logDebug("[Netz] Shelly JSON error: " + String(err.c_str()));
     gridOk = false;
   }
 }
 
 // ----------------------------------------------------------------------
-// Abfrage Wechselrichter (Fronius Solar API v1 & OpenDTU Parser)
+// Query Solar Inverter (Fronius Solar API v1 & OpenDTU Parser)
 // ----------------------------------------------------------------------
 void updateInverterData() {
   if (strlen(config.inverter_ip) == 0 || strcmp(config.inverter_ip, "0.0.0.0") == 0) {
@@ -873,7 +872,7 @@ void updateInverterData() {
   WiFiClient client;
   client.setTimeout(1000);
   if (!client.connect(config.inverter_ip, 80)) {
-    logDebug(F("[Solar] Fronius / Wechselrichter nicht erreichbar. Warten..."));
+    logDebug(F("[Solar] Fronius / Inverter unreachable. Waiting..."));
     solarOk = false;
     return;
   }
@@ -919,9 +918,9 @@ void updateInverterData() {
       solarPowerW = 0.0;
     }
 
-    logDebug("[Solar] Aktuelle Solarleistung (Fronius): " + String(solarPowerW) + " W");
+    logDebug("[Solar] Current solar power (Fronius): " + String(solarPowerW) + " W");
   } else {
-    logDebug("[Solar] Inverter JSON Fehler: " + String(err.c_str()));
+    logDebug("[Solar] Inverter JSON error: " + String(err.c_str()));
     solarOk = false;
   }
 }
@@ -939,13 +938,13 @@ String formatPower(float watts) {
 // Display Rendering Modes
 // ----------------------------------------------------------------------
 
-// Access Point Setup Bildschirm mit Wi-Fi Symbol (Ohne klobigen Text)
+// Access Point Setup Screen with Wi-Fi Icon
 void drawAPScreen() {
   matrix.fillScreen(COLOR_BLACK);
   matrix.setTextWrap(false);
   matrix.setTextSize(1);
 
-  // Wi-Fi Symbol oben zentriert
+  // Wi-Fi Icon centered at top
   drawWifiIcon(28, 2, COLOR_CYAN);
 
   matrix.setTextColor(COLOR_WHITE);
@@ -970,7 +969,7 @@ void drawAPScreen() {
   matrix.show();
 }
 
-// Dedicated Status Bildschirm (Taste UP) mit ultra-kompakter IP Schrift (3x5 Pixel Font)
+// Dedicated Status Screen (UP Button) with ultra-compact 3x5 Pixel Font for IP addresses
 void drawStatusScreen() {
   matrix.fillScreen(COLOR_BLACK);
   matrix.setTextWrap(false);
@@ -984,7 +983,7 @@ void drawStatusScreen() {
 
   matrix.drawFastHLine(0, 11, 64, COLOR_GRAY);
 
-  // 1. Matrix IP Adresse
+  // 1. Matrix IP Address
   matrix.setTextColor(COLOR_YELLOW);
   matrix.setCursor(2, 14);
   matrix.print(F("MATRIX IP:"));
@@ -1018,7 +1017,7 @@ void drawStatusScreen() {
   matrix.show();
 }
 
-// Hauptbildschirm: Uhrzeit, Datum & Energie (Sauber & ohne Balken)
+// Main Normal Screen: Time, Date & Energy (Clean, no bars)
 void drawNormalScreen() {
   matrix.fillScreen(COLOR_BLACK);
   matrix.setTextWrap(false);
@@ -1031,10 +1030,10 @@ void drawNormalScreen() {
   int year, month, day, wday;
   epochToDate(nowEpoch, year, month, day, wday);
 
-  // Wochentags-Mapping für wday = (days + 4) % 7 (0=Sonntag, 1=Montag, ..., 4=Donnerstag)
+  // Weekday mapping for wday = (days + 4) % 7 (0=Su, 1=Mo, 2=Tu, 3=We, 4=Th, 5=Fr, 6=Sa)
   const char* wdays[] = {"So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."};
 
-  // 1. Uhrzeit (Cyan, y=2) & Wi-Fi Icon (oben rechts, y=2, x=54)
+  // 1. Time (Cyan, y=2) & Wi-Fi Icon (top right, y=2, x=54)
   matrix.setTextColor(COLOR_CYAN);
   matrix.setTextSize(1);
   char timeBuf[10];
@@ -1042,10 +1041,10 @@ void drawNormalScreen() {
   matrix.setCursor(2, 2);
   matrix.print(timeBuf);
 
-  // Wi-Fi Symbol (Grün = Verbunden, Rot = Getrennt)
+  // Wi-Fi Symbol (Green = Connected, Red = Disconnected)
   drawWifiIcon(54, 2, WiFi.status() == WL_CONNECTED ? COLOR_GREEN : COLOR_RED);
 
-  // 2. Datum & Wochentag (Weiß, y=11) -> "Mo. 3.8.26"
+  // 2. Date & Weekday (White, y=11) -> "Mo. 3.8.26"
   matrix.setTextColor(COLOR_WHITE);
   char dateBuf[16];
   sprintf(dateBuf, "%s %d.%d.%02d", wdays[wday], day, month, year % 100);
@@ -1058,7 +1057,7 @@ void drawNormalScreen() {
 
   matrix.drawFastHLine(0, 20, 64, COLOR_GRAY);
 
-  // 3. Solar Leistung (y=23..33)
+  // 3. Solar Power (y=23..33)
   matrix.setCursor(2, 23);
   matrix.setTextColor(COLOR_YELLOW);
   matrix.print(F("SOLAR"));
@@ -1074,7 +1073,7 @@ void drawNormalScreen() {
 
   matrix.drawFastHLine(0, 43, 64, COLOR_GRAY);
 
-  // 4. Netz Leistung (y=46..55) -> Einheitliche Überschrift "NETZ"
+  // 4. Grid Power (y=46..55) -> Uniform "NETZ" header
   matrix.setCursor(2, 46);
   matrix.setTextColor(COLOR_CYAN);
   matrix.print(F("NETZ"));
@@ -1109,26 +1108,26 @@ void setup() {
   ProtomatterStatus status = matrix.begin();
   Serial.printf("[Display] Protomatter Status: %d\n", status);
 
-  // Dynamische Farbskalierung & Helligkeit setzen (10-255)
+  // Apply dynamic color brightness (10-255)
   updateColors();
 
   if (accel.begin(0x19)) {
     accel.setRange(LIS3DH_RANGE_4_G);
     accelOk = true;
-    Serial.println(F("[Sensor] LIS3DH Beschleunigungssensor (PixelDust) bereit."));
+    Serial.println(F("[Sensor] LIS3DH Accelerometer (PixelDust) ready."));
   } else {
-    Serial.println(F("[Sensor] LIS3DH nicht gefunden (Software-Gravitation aktiv)."));
+    Serial.println(F("[Sensor] LIS3DH not found (Software gravity fallback active)."));
   }
 
   if (strlen(config.wifi_ssid) == 0) {
-    Serial.println(F("[WLAN] Keine SSID gespeichert. Starte Access Point Mode..."));
+    Serial.println(F("[WLAN] No SSID saved. Starting Access Point Mode..."));
     isAPMode = true;
   } else {
     matrix.fillScreen(COLOR_BLACK);
     drawWifiIcon(28, 25, COLOR_CYAN);
     matrix.show();
 
-    Serial.print(F("[WLAN] Verbinde mit SSID: '"));
+    Serial.print(F("[WLAN] Connecting to SSID: '"));
     Serial.print(config.wifi_ssid);
     Serial.println(F("'"));
 
@@ -1141,7 +1140,7 @@ void setup() {
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-      Serial.println(F("\n[WLAN] Verbindung fehlgeschlagen! Starte Access Point Mode..."));
+      Serial.println(F("\n[WLAN] Connection failed! Starting Access Point Mode..."));
       isAPMode = true;
     }
   }
@@ -1159,18 +1158,18 @@ void setup() {
     webServer.begin();
 
     Serial.println(F("\n=================================================="));
-    Serial.println(F(" ACCESS POINT & CAPTIVE PORTAL GESTARTET"));
+    Serial.println(F(" ACCESS POINT & CAPTIVE PORTAL STARTED"));
     Serial.print(F(" SSID:     ")); Serial.println(AP_SSID);
     Serial.print(F(" PASS/PIN: ")); Serial.println(ap_password);
     Serial.print(F(" AP IP:    ")); Serial.println(apIPAddress);
-    Serial.println(F(" Drücke Taste UP für Status-Bildschirm, DOWN für PixelDust Demo!"));
-    Serial.println(F(" Tippe 'help' auf der Serial Konsole für CLI Befehle"));
+    Serial.println(F(" Press UP for Status screen, DOWN for PixelDust Sand Demo!"));
+    Serial.println(F(" Type 'help' on Serial Console for CLI commands"));
     Serial.println(F("==================================================\n"));
 
     drawAPScreen();
   } else {
-    Serial.println(F("\n[WLAN] Erfolgreich Verbunden!"));
-    Serial.print(F("[WLAN] IP Adresse: "));
+    Serial.println(F("\n[WLAN] Wi-Fi Connected Successfully!"));
+    Serial.print(F("[WLAN] IP Address: "));
     Serial.println(WiFi.localIP());
 
     matrix.fillScreen(COLOR_BLACK);
@@ -1187,7 +1186,7 @@ void setup() {
     webServer.begin();
   }
 
-  Serial.println(F("[Web] HTTP Webserver auf Port 80 gestartet!"));
+  Serial.println(F("[Web] HTTP Web server started on port 80!"));
   printHelp();
 }
 
@@ -1195,13 +1194,13 @@ void setup() {
 // MAIN LOOP
 // ----------------------------------------------------------------------
 void loop() {
-  // 1. Tasten verarbeiten (UP -> Status, DOWN -> PixelDust)
+  // 1. Process Hardware Buttons (UP -> Status, DOWN -> PixelDust)
   handleButtons();
 
-  // 2. Serial CLI verarbeiten
+  // 2. Process Serial CLI
   handleSerialCLI();
 
-  // 3. Ausführung des ausgewählten Display-Modus
+  // 3. Render active mode if PixelDust is active
   if (currentMode == MODE_PIXELDUST) {
     runPixelDustFrame();
     return;
@@ -1212,7 +1211,7 @@ void loop() {
     if (apStatus != WiFi.status()) {
       apStatus = WiFi.status();
       if (apStatus == WL_AP_CONNECTED) {
-        logDebug(F("[WLAN] Client hat sich mit dem Hotspot verbunden!"));
+        logDebug(F("[WLAN] Client connected to hotspot!"));
       }
     }
     processDNS();
@@ -1221,12 +1220,12 @@ void loop() {
     return;
   }
 
-  // 5. Webserver Anfragen verarbeiten
+  // 5. Process Web Server Requests
   handleWebClient();
 
   unsigned long currentMs = millis();
 
-  // 6. Display Rendering je nach Modus
+  // 6. Display Redraw according to active mode
   if (currentMs - lastDisplayRedraw >= 100) {
     if (currentMode == MODE_STATUS) {
       drawStatusScreen();
@@ -1236,7 +1235,7 @@ void loop() {
     lastDisplayRedraw = currentMs;
   }
 
-  // 7. NTP Update (stündlich)
+  // 7. NTP Time Sync (hourly)
   if (currentMs - lastNTPUpdate > 3600000UL || localUnixTime == 0) {
     if (WiFi.status() == WL_CONNECTED) {
       unsigned long ntpEpoch = fetchNTPTime();
@@ -1248,7 +1247,7 @@ void loop() {
     lastNTPUpdate = currentMs;
   }
 
-  // 8. Abfrage Shelly 3Pro
+  // 8. Query Shelly 3Pro
   unsigned long shellyInterval = gridOk ? POLL_ONLINE_MS : RETRY_OFFLINE_MS;
   if (currentMs - lastShellyAttempt >= shellyInterval) {
     if (WiFi.status() == WL_CONNECTED) {
@@ -1257,7 +1256,7 @@ void loop() {
     lastShellyAttempt = currentMs;
   }
 
-  // 9. Abfrage Wechselrichter (Fronius)
+  // 9. Query Fronius Inverter
   unsigned long inverterInterval = solarOk ? POLL_ONLINE_MS : RETRY_OFFLINE_MS;
   if (currentMs - lastInverterAttempt >= inverterInterval) {
     if (WiFi.status() == WL_CONNECTED) {
