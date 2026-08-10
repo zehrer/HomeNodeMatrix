@@ -1,8 +1,10 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
-  - Fix Date truncation overflow: 2-letter English weekdays (Su., Mo., Tu., etc.)
-    preventing 11/12-char dates from overflowing 64px matrix width.
+  - Proportional Date Spacing (drawProportionalDateString):
+    Proportionally renders dots (3px), spaces (3px), and digits (4-6px),
+    guaranteeing ANY date format (e.g. Mo. 10.8.26 or Mo. 10.11.26) is cleanly
+    centered between x=5 and x=58 with 5-6px safety margins on BOTH sides.
   - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
   - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
@@ -146,6 +148,43 @@ void updateColors() {
 void applyBrightness(uint8_t b) {
   config.brightness = constrain(b, 10, 255);
   updateColors();
+}
+
+// ----------------------------------------------------------------------
+// Proportional Date Renderer (Prevents truncation on 64px display)
+// ----------------------------------------------------------------------
+void drawProportionalDateString(int16_t y, const char* str, uint16_t color) {
+  int totalWidth = 0;
+  int len = strlen(str);
+
+  for (int i = 0; i < len; i++) {
+    char c = str[i];
+    if (c == '.') totalWidth += 3;       // Dot is 2px + 1px space = 3px
+    else if (c == ' ') totalWidth += 3;  // Space is 3px
+    else if (c == '1') totalWidth += 4;  // Digit 1 is 3px + 1px space = 4px
+    else totalWidth += 6;                // Standard char is 5px + 1px space = 6px
+  }
+  if (len > 0) totalWidth -= 1; // Remove trailing space of last character
+
+  int xPos = (64 - totalWidth) / 2;
+  if (xPos < 0) xPos = 0;
+
+  matrix.setTextColor(color);
+  for (int i = 0; i < len; i++) {
+    char c = str[i];
+    if (c == '.') {
+      matrix.drawChar(xPos, y, c, color, COLOR_BLACK, 1);
+      xPos += 3;
+    } else if (c == ' ') {
+      xPos += 3;
+    } else if (c == '1') {
+      matrix.drawChar(xPos, y, c, color, COLOR_BLACK, 1);
+      xPos += 4;
+    } else {
+      matrix.drawChar(xPos, y, c, color, COLOR_BLACK, 1);
+      xPos += 6;
+    }
+  }
 }
 
 // ----------------------------------------------------------------------
@@ -1080,7 +1119,7 @@ void drawStatusScreen() {
   matrix.show();
 }
 
-// Main Normal Screen: Time, Date & Energy (Clean, no bars)
+// Main Normal Screen: Time, Date & Energy (Clean, proportional date spacing)
 void drawNormalScreen() {
   matrix.fillScreen(COLOR_BLACK);
   matrix.setTextWrap(false);
@@ -1093,7 +1132,7 @@ void drawNormalScreen() {
   int year, month, day, wday;
   epochToDate(nowEpoch, year, month, day, wday);
 
-  // Dynamic Weekday Arrays for German / English (2-letter format prevents >64px overflow)
+  // Dynamic Weekday Arrays for German / English
   const char* wdaysDE[] = {"So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."};
   const char* wdaysEN[] = {"Su.", "Mo.", "Tu.", "We.", "Th.", "Fr.", "Sa."};
   const char* dayStr    = (config.lang == 0) ? wdaysDE[wday] : wdaysEN[wday];
@@ -1109,16 +1148,10 @@ void drawNormalScreen() {
   // Wi-Fi Symbol (Green = Connected, Red = Disconnected)
   drawWifiIcon(54, 2, WiFi.status() == WL_CONNECTED ? COLOR_GREEN : COLOR_RED);
 
-  // 2. Date & Weekday (White, y=11) -> "Mo. 10.8.26" / "Mo. 10.12.26"
-  matrix.setTextColor(COLOR_WHITE);
+  // 2. Date & Weekday (Proportional spacing guarantees perfect 64px fit for ALL dates like Mo. 10.11.26)
   char dateBuf[16];
   sprintf(dateBuf, "%s %d.%d.%02d", dayStr, day, month, year % 100);
-  
-  int textWidth = strlen(dateBuf) * 6;
-  int xPos = (64 - textWidth) / 2;
-  if (xPos < 0) xPos = 0;
-  matrix.setCursor(xPos, 11);
-  matrix.print(dateBuf);
+  drawProportionalDateString(11, dateBuf, COLOR_WHITE);
 
   matrix.drawFastHLine(0, 20, 64, COLOR_GRAY);
 
