@@ -1,9 +1,11 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
+  - Fix Date truncation overflow: 2-letter English weekdays (Su., Mo., Tu., etc.)
+    preventing 11/12-char dates from overflowing 64px matrix width.
+  - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
   - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
-  - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Ultra-compact 3x5 Pixel Font for 15-char IP addresses (e.g. 192.168.178.154)
   - Dynamic Brightness Control via Web, CLI & Flash persistence
   - UP Button   -> Status Screen (Matrix IP, Shelly IP & Fronius IP)
@@ -1091,9 +1093,9 @@ void drawNormalScreen() {
   int year, month, day, wday;
   epochToDate(nowEpoch, year, month, day, wday);
 
-  // Dynamic Weekday Arrays for German / English
+  // Dynamic Weekday Arrays for German / English (2-letter format prevents >64px overflow)
   const char* wdaysDE[] = {"So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."};
-  const char* wdaysEN[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  const char* wdaysEN[] = {"Su.", "Mo.", "Tu.", "We.", "Th.", "Fr.", "Sa."};
   const char* dayStr    = (config.lang == 0) ? wdaysDE[wday] : wdaysEN[wday];
 
   // 1. Time (Cyan, y=2) & Wi-Fi Icon (top right, y=2, x=54)
@@ -1107,7 +1109,7 @@ void drawNormalScreen() {
   // Wi-Fi Symbol (Green = Connected, Red = Disconnected)
   drawWifiIcon(54, 2, WiFi.status() == WL_CONNECTED ? COLOR_GREEN : COLOR_RED);
 
-  // 2. Date & Weekday (White, y=11) -> "Mo. 3.8.26" / "Mon 3.8.26"
+  // 2. Date & Weekday (White, y=11) -> "Mo. 10.8.26" / "Mo. 10.12.26"
   matrix.setTextColor(COLOR_WHITE);
   char dateBuf[16];
   sprintf(dateBuf, "%s %d.%d.%02d", dayStr, day, month, year % 100);
@@ -1317,7 +1319,7 @@ void loop() {
     lastShellyAttempt = currentMs;
   }
 
-  // 9. Query Fronius Inverter
+  // 9. Query Solar Inverter
   unsigned long inverterInterval = solarOk ? POLL_ONLINE_MS : RETRY_OFFLINE_MS;
   if (currentMs - lastInverterAttempt >= inverterInterval) {
     if (WiFi.status() == WL_CONNECTED) {
