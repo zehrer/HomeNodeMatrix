@@ -2,15 +2,18 @@
 
 This directory contains the 3D printable enclosure files for the **Adafruit MatrixPortal M4 + 64x64 LED Matrix Display**.
 
-📦 **[Download Complete Tinkercad 3D Model (Matrix Case.glb)](Matrix%20Case.glb)**
+![3D Case Preview](../assets/matrix_case_3d_preview.png)
 
 ---
 
-## 📐 Included Files & Structure
+## 📦 Downloads & 3D Model Formats
 
-- **`Matrix Case.glb`**: Complete 3D enclosure model exported from Tinkercad.
+- 💾 **[Download STL File (Matrix_Case.stl)](Matrix_Case.stl)** *(Universal 3D Printing Format)*
+- 📦 **[Download Tinkercad GLB Model (Matrix Case.glb)](Matrix%20Case.glb)**
 
-### 🧩 Components Breakdown (3 Printable Parts):
+---
+
+## 📐 Components Breakdown (3 Printable Parts):
 
 1. **Left Side Panel (Linkes Seitenteil)**: Side frame with USB cutout for MatrixPortal M4 power & programming access.
 2. **Right Side Panel (Rechtes Seitenteil)**: Symmetrical side frame matching the enclosure geometry.
@@ -18,8 +21,9 @@ This directory contains the 3D printable enclosure files for the **Adafruit Matr
 
 ---
 
-## 🛠 Printing Tips
+## 🛠 Printing Recommendations
 
+- **Format**: STL (`Matrix_Case.stl`)
 - **Material**: PLA / PETG / ABS
 - **Layer Height**: 0.2 mm
 - **Infill**: 15% – 20%
