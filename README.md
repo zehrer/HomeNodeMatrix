@@ -43,6 +43,12 @@ You can instantly test HomeNodeMatrix without installing Arduino IDE or compilin
 
 ---
 
+## 📐 3D Printable Enclosure / Gehäuse
+
+3D model files (`.glb`, `.stl`) for printing the matrix enclosure frame are located in the [`3d_models/`](3d_models/) directory.
+
+---
+
 ## 🛠 Hardware & Requirements
 
 - **Board**: Adafruit MatrixPortal M4 (ATSAMD51 ARM Cortex-M4 + ESP32 AirLift Wi-Fi co-processor)
