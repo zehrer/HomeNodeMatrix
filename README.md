@@ -4,7 +4,7 @@
 
 ![HomeNodeMatrix Display in Action](assets/homenodematrix_display.jpg)
 
-It fetches real-time solar generation data from your photovoltaic system (**Fronius Inverter**) as well as grid power consumption/feed-in from your smart meter (**Shelly 3Pro / Pro 3EM**), displaying them alongside synchronized clock and date information.
+It fetches real-time solar generation data from your photovoltaic system (**Fronius Inverter**) as well as grid power consumption/feed-in from your smart meter (**Shelly 3Pro / Pro 3EM**), displaying them alongside synchronized clock, date, and word clock information.
 
 ---
 
@@ -24,6 +24,7 @@ You can instantly test HomeNodeMatrix without installing Arduino IDE or compilin
 ## 🌟 Features
 
 - **Time & Date Display**: Precise NTP clock synchronization and dynamic weekday calculation (`Mo 10.08.26` / `Mon 10.08.26`).
+- **QLOCKTWO Word Clock Mode (`WORTUHR`)**: Authentic 10x11 German word matrix clock with glowing active text (e.g., *"ES IST HALB ACHT"*), stealthy background letters, and 4 corner dots for exact minute offsets (+1, +2, +3, +4).
 - **Solar Generation (`SOLAR`)**: Real-time PV power readings using the **Fronius Solar API v1** (`/solar_api/v1/GetPowerFlowRealtimeData.fcgi`).
 - **Grid Power (`NETZ` / `GRID`)**: Live grid import and export readings using the **Shelly Gen2 HTTP API** (`/rpc/Shelly.GetStatus`).
 - **Animated Boot Connection Screen**: Clean Wi-Fi icon with a ring of 8 yellow dots filling up clockwise to indicate connection progress (no text).
@@ -35,10 +36,10 @@ You can instantly test HomeNodeMatrix without installing Arduino IDE or compilin
 - **Dark Mode Web Configuration Page**: Easily configure Wi-Fi credentials, IP addresses, API endpoints, language, UTC offset, and display brightness via any web browser.
 - **Serial Command Line Interface (CLI)**:
   - Full-featured interactive serial console over USB (compatible with Chrome Web Serial Terminal).
-  - Commands: `status`, `build` (version & build #), `debug on/off`, `mode normal/status/dust`, `lang de/en`, `wifi <ssid> <pass>` (hot live reconnect), `shelly`, `inverter`, `brightness`, `save`, `reset`, `reboot`.
+  - Commands: `status`, `build` (version & build #), `debug on/off`, `mode normal/word/status/dust`, `lang de/en`, `wifi <ssid> <pass>` (hot live reconnect), `shelly`, `inverter`, `brightness`, `save`, `reset`, `reboot`.
   - Mutable background debug logging (`debug off`) to keep the CLI prompt pristine while typing.
 - **On-Board Hardware Button Controls**:
-  - **UP Button**: Toggles the **Status Screen** (showing Matrix Portal IP, Shelly IP, and Fronius IP using an ultra-compact 3x5 pixel font).
+  - **UP Button**: Cycles display modes (**Clock & Energy** ➔ **QLOCKTWO Word Clock** ➔ **Status Screen**).
   - **DOWN Button**: Activates the **PixelDust Sand Physics Demo** (uses the on-board LIS3DH accelerometer for real-time tilt/gravity sand particle simulation).
 
 ---
@@ -86,9 +87,9 @@ Connect at `115200` baud (e.g. via [Chrome Serial Terminal](https://googlechrome
 | :--- | :--- |
 | `status` | Display current network status and configuration |
 | `build` / `version` | Display firmware version, build number & compilation timestamp |
+| `mode normal` / `word` / `status` / `dust` | Switch display mode (Clock/Energy, QLOCKTWO Word Clock, Status Info, PixelDust) |
 | `lang de` / `lang en` | Switch language between German and English |
 | `debug on` / `debug off` | Enable or disable background live debug log output |
-| `mode normal` / `status` / `dust` | Switch display mode (Clock/Energy, Status Info, PixelDust) |
 | `wifi <ssid> <password>` | Configure Wi-Fi credentials and hot-reconnect live |
 | `shelly <ip> [path]` | Configure Shelly 3Pro IP address and API path |
 | `inverter <ip> [path]` | Configure Fronius inverter IP address and API path |

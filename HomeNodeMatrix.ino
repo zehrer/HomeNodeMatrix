@@ -1,18 +1,20 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
-  - Perfect Date Layout ("Mo 10.08.26"):
-    'Mo' drawn at x=1 (no missing left line of 'M'), 3px tight gap,
-    and '10.08.26' drawn at x=15 (ends at x=61, leaving 2px right margin).
+  - QLOCKTWO Word Clock Mode (MODE_WORDCLOCK):
+    Authentic German QLOCKTWO word clock layout rendered in a crisp 3x5 font.
+    Features glowing active words, subtle unlit background letters,
+    and 4 corner dots for exact minute offsets (+1, +2, +3, +4)!
   - Live Wi-Fi Hot Reconnect: CLI 'wifi <ssid> <pass>' immediately disconnects
     and connects to the new network without requiring a hardware reboot!
   - CLI Build Info: 'build' / 'version' command showing Build Number, Version & Timestamp
+  - Clean Date Format: "Mo 10.08.26" (No dot after 2-letter weekday, 2-digit day & month)
   - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
   - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
   - Ultra-compact 3x5 Pixel Font for 15-char IP addresses (e.g. 192.168.178.154)
   - Dynamic Brightness Control via Web, CLI & Flash persistence
-  - UP Button   -> Status Screen (Matrix IP, Shelly IP & Fronius IP)
+  - UP Button   -> Toggles modes (Normal -> Word Clock -> Status -> PixelDust)
   - DOWN Button -> PixelDust Sand Physics Demo (LIS3DH Accelerometer)
   ---------------------------------------------------------------------- */
 
@@ -67,6 +69,7 @@ Adafruit_PixelDust sand(64, 64, DUST_GRAINS, 1, 128, false);
 
 enum DisplayMode {
   MODE_NORMAL,
+  MODE_WORDCLOCK,
   MODE_STATUS,
   MODE_PIXELDUST
 };
@@ -89,6 +92,7 @@ uint16_t COLOR_RED;
 uint16_t COLOR_CYAN;
 uint16_t COLOR_BLUE;
 uint16_t COLOR_ORANGE;
+uint16_t COLOR_DARK_GRAY;
 
 // Configuration Storage
 ConfigData config;
@@ -140,15 +144,16 @@ void drawWifiFillProgressScreen(int filledCount);
 // ----------------------------------------------------------------------
 void updateColors() {
   uint32_t b = config.brightness; // 10 .. 255
-  COLOR_BLACK  = matrix.color565(0, 0, 0);
-  COLOR_WHITE  = matrix.color565((255 * b) / 255, (255 * b) / 255, (255 * b) / 255);
-  COLOR_GRAY   = matrix.color565((50  * b) / 255, (50  * b) / 255, (50  * b) / 255);
-  COLOR_YELLOW = matrix.color565((255 * b) / 255, (220 * b) / 255, 0);
-  COLOR_GREEN  = matrix.color565(0, (255 * b) / 255, (100 * b) / 255);
-  COLOR_RED    = matrix.color565((255 * b) / 255, (40  * b) / 255, (40  * b) / 255);
-  COLOR_CYAN   = matrix.color565(0, (220 * b) / 255, (255 * b) / 255);
-  COLOR_BLUE   = matrix.color565(0, (100 * b) / 255, (255 * b) / 255);
-  COLOR_ORANGE = matrix.color565((255 * b) / 255, (120 * b) / 255, 0);
+  COLOR_BLACK     = matrix.color565(0, 0, 0);
+  COLOR_WHITE     = matrix.color565((255 * b) / 255, (255 * b) / 255, (255 * b) / 255);
+  COLOR_GRAY      = matrix.color565((50  * b) / 255, (50  * b) / 255, (50  * b) / 255);
+  COLOR_DARK_GRAY = matrix.color565((22  * b) / 255, (22  * b) / 255, (28  * b) / 255);
+  COLOR_YELLOW    = matrix.color565((255 * b) / 255, (220 * b) / 255, 0);
+  COLOR_GREEN     = matrix.color565(0, (255 * b) / 255, (100 * b) / 255);
+  COLOR_RED       = matrix.color565((255 * b) / 255, (40  * b) / 255, (40  * b) / 255);
+  COLOR_CYAN      = matrix.color565(0, (220 * b) / 255, (255 * b) / 255);
+  COLOR_BLUE      = matrix.color565(0, (100 * b) / 255, (255 * b) / 255);
+  COLOR_ORANGE    = matrix.color565((255 * b) / 255, (120 * b) / 255, 0);
 }
 
 void applyBrightness(uint8_t b) {
@@ -197,6 +202,207 @@ bool connectWiFi(bool showAnimation) {
     Serial.println(F("\n[WLAN] Connection failed!"));
     return false;
   }
+}
+
+// ----------------------------------------------------------------------
+// Compact 3x5 Uppercase Alphabet Font for QLOCKTWO Word Clock (A-Z, Ä, Ö, Ü)
+// ----------------------------------------------------------------------
+const uint8_t font3x5_alpha[][5] PROGMEM = {
+  {0b010, 0b101, 0b111, 0b101, 0b101}, // A (0)
+  {0b110, 0b101, 0b110, 0b101, 0b110}, // B (1)
+  {0b011, 0b100, 0b100, 0b100, 0b011}, // C (2)
+  {0b110, 0b101, 0b101, 0b101, 0b110}, // D (3)
+  {0b111, 0b100, 0b110, 0b100, 0b111}, // E (4)
+  {0b111, 0b100, 0b110, 0b100, 0b100}, // F (5)
+  {0b011, 0b100, 0b101, 0b101, 0b011}, // G (6)
+  {0b101, 0b101, 0b111, 0b101, 0b101}, // H (7)
+  {0b111, 0b010, 0b010, 0b010, 0b111}, // I (8)
+  {0b001, 0b001, 0b001, 0b101, 0b010}, // J (9)
+  {0b101, 0b101, 0b110, 0b101, 0b101}, // K (10)
+  {0b100, 0b100, 0b100, 0b100, 0b111}, // L (11)
+  {0b101, 0b111, 0b101, 0b101, 0b101}, // M (12)
+  {0b101, 0b111, 0b111, 0b101, 0b101}, // N (13)
+  {0b010, 0b101, 0b101, 0b101, 0b010}, // O (14)
+  {0b110, 0b101, 0b110, 0b100, 0b100}, // P (15)
+  {0b010, 0b101, 0b101, 0b110, 0b011}, // Q (16)
+  {0b110, 0b101, 0b110, 0b101, 0b101}, // R (17)
+  {0b011, 0b100, 0b010, 0b001, 0b110}, // S (18)
+  {0b111, 0b010, 0b010, 0b010, 0b010}, // T (19)
+  {0b101, 0b101, 0b101, 0b101, 0b011}, // U (20)
+  {0b101, 0b101, 0b101, 0b101, 0b010}, // V (21)
+  {0b101, 0b101, 0b101, 0b111, 0b101}, // W (22)
+  {0b101, 0b101, 0b010, 0b101, 0b101}, // X (23)
+  {0b101, 0b101, 0b010, 0b010, 0b010}, // Y (24)
+  {0b111, 0b001, 0b010, 0b100, 0b111}, // Z (25)
+  {0b101, 0b000, 0b010, 0b101, 0b111}, // Ä (26) '['
+  {0b101, 0b000, 0b010, 0b101, 0b010}, // Ö (27) '\'
+  {0b101, 0b000, 0b101, 0b101, 0b011}  // Ü (28) ']'
+};
+
+void drawAlphaChar(int16_t x, int16_t y, char c, uint16_t color) {
+  int idx = -1;
+  if (c >= 'A' && c <= 'Z') idx = c - 'A';
+  else if (c == '[') idx = 26; // Ä
+  else if (c == '\\') idx = 27; // Ö
+  else if (c == ']') idx = 28; // Ü
+  if (idx < 0) return;
+
+  for (int row = 0; row < 5; row++) {
+    uint8_t b = pgm_read_byte(&font3x5_alpha[idx][row]);
+    if (b & 0b100) matrix.drawPixel(x, y + row, color);
+    if (b & 0b010) matrix.drawPixel(x + 1, y + row, color);
+    if (b & 0b001) matrix.drawPixel(x + 2, y + row, color);
+  }
+}
+
+// ----------------------------------------------------------------------
+// QLOCKTWO German Word Grid Matrix (10 Rows x 11 Columns)
+// ----------------------------------------------------------------------
+const char qlockGrid[10][12] = {
+  "ESKISTAF]NF", // Row 0: ES, IST, FÜNF
+  "ZEHNZWANZIG", // Row 1: ZEHN, ZWANZIG
+  "DREIVIERTEL", // Row 2: DREI, VIERTEL
+  "VORFUNKNACH", // Row 3: VOR, NACH
+  "HALBAELF]NF", // Row 4: HALB, ELF, FÜNF
+  "EINSXAMZWEI", // Row 5: EINS, ZWEI
+  "DREIPMJVIER", // Row 6: DREI, VIER
+  "SECHSNLACHT", // Row 7: SECHS, ACHT
+  "SIEBENZW\\LF", // Row 8: SIEBEN, ZWÖLF
+  "ZEHNEUNKUHR"  // Row 9: ZEHN, NEUN, UHR
+};
+
+void drawWordClockScreen() {
+  matrix.fillScreen(COLOR_BLACK);
+
+  unsigned long nowEpoch = localUnixTime + ((millis() - lastTimeSyncMs) / 1000);
+  int hours   = (nowEpoch % 86400L) / 3600;
+  int minutes = (nowEpoch % 3600) / 60;
+
+  int m_5 = (minutes / 5) * 5;
+  int m_rem = minutes % 5;
+
+  int h_target = (minutes >= 25) ? (hours + 1) % 12 : hours % 12;
+  if (h_target == 0) h_target = 12;
+
+  bool lit[10][11] = {false};
+
+  // 1. "ES IST" is always lit
+  lit[0][0] = lit[0][1] = true;                 // ES
+  lit[0][3] = lit[0][4] = lit[0][5] = true;     // IST
+
+  // 2. Minute words
+  switch (m_5) {
+    case 0:
+      for (int c = 8; c <= 10; c++) lit[9][c] = true; // UHR
+      break;
+    case 5:
+      for (int c = 7; c <= 10; c++) lit[0][c] = true; // FÜNF
+      for (int c = 7; c <= 10; c++) lit[3][c] = true; // NACH
+      break;
+    case 10:
+      for (int c = 0; c <= 3; c++)  lit[1][c] = true; // ZEHN
+      for (int c = 7; c <= 10; c++) lit[3][c] = true; // NACH
+      break;
+    case 15:
+      for (int c = 4; c <= 10; c++) lit[2][c] = true; // VIERTEL
+      for (int c = 7; c <= 10; c++) lit[3][c] = true; // NACH
+      break;
+    case 20:
+      for (int c = 4; c <= 10; c++) lit[1][c] = true; // ZWANZIG
+      for (int c = 7; c <= 10; c++) lit[3][c] = true; // NACH
+      break;
+    case 25:
+      for (int c = 7; c <= 10; c++) lit[0][c] = true; // FÜNF
+      for (int c = 0; c <= 2; c++)  lit[3][c] = true; // VOR
+      for (int c = 0; c <= 3; c++)  lit[4][c] = true; // HALB
+      break;
+    case 30:
+      for (int c = 0; c <= 3; c++)  lit[4][c] = true; // HALB
+      break;
+    case 35:
+      for (int c = 7; c <= 10; c++) lit[0][c] = true; // FÜNF
+      for (int c = 7; c <= 10; c++) lit[3][c] = true; // NACH
+      for (int c = 0; c <= 3; c++)  lit[4][c] = true; // HALB
+      break;
+    case 40:
+      for (int c = 4; c <= 10; c++) lit[1][c] = true; // ZWANZIG
+      for (int c = 0; c <= 2; c++)  lit[3][c] = true; // VOR
+      break;
+    case 45:
+      for (int c = 0; c <= 10; c++) lit[2][c] = true; // DREIVIERTEL
+      break;
+    case 50:
+      for (int c = 0; c <= 3; c++)  lit[1][c] = true; // ZEHN
+      for (int c = 0; c <= 2; c++)  lit[3][c] = true; // VOR
+      break;
+    case 55:
+      for (int c = 7; c <= 10; c++) lit[0][c] = true; // FÜNF
+      for (int c = 0; c <= 2; c++)  lit[3][c] = true; // VOR
+      break;
+  }
+
+  // 3. Hour words
+  switch (h_target) {
+    case 1:
+      if (m_5 == 0) {
+        for (int c = 0; c <= 2; c++) lit[5][c] = true; // EIN
+      } else {
+        for (int c = 0; c <= 3; c++) lit[5][c] = true; // EINS
+      }
+      break;
+    case 2:
+      for (int c = 7; c <= 10; c++) lit[5][c] = true; // ZWEI
+      break;
+    case 3:
+      for (int c = 0; c <= 3; c++)  lit[6][c] = true; // DREI
+      break;
+    case 4:
+      for (int c = 7; c <= 10; c++) lit[6][c] = true; // VIER
+      break;
+    case 5:
+      for (int c = 7; c <= 10; c++) lit[4][c] = true; // FÜNF
+      break;
+    case 6:
+      for (int c = 0; c <= 4; c++)  lit[7][c] = true; // SECHS
+      break;
+    case 7:
+      for (int c = 0; c <= 5; c++)  lit[8][c] = true; // SIEBEN
+      break;
+    case 8:
+      for (int c = 6; c <= 9; c++)  lit[7][c] = true; // ACHT
+      break;
+    case 9:
+      for (int c = 3; c <= 6; c++)  lit[9][c] = true; // NEUN
+      break;
+    case 10:
+      for (int c = 0; c <= 3; c++)  lit[9][c] = true; // ZEHN
+      break;
+    case 11:
+      for (int c = 4; c <= 6; c++)  lit[4][c] = true; // ELF
+      break;
+    case 12:
+      for (int c = 6; c <= 10; c++) lit[8][c] = true; // ZWÖLF
+      break;
+  }
+
+  // 4. Render 10x11 Grid (Col 0..10 at x=4,9,14...; Row 0..9 at y=2,8,14...)
+  for (int r = 0; r < 10; r++) {
+    int y = 2 + (r * 6);
+    for (int c = 0; c < 11; c++) {
+      int x = 4 + (c * 5);
+      char ch = qlockGrid[r][c];
+      uint16_t letterColor = lit[r][c] ? COLOR_WHITE : COLOR_DARK_GRAY;
+      drawAlphaChar(x, y, ch, letterColor);
+    }
+  }
+
+  // 5. Render 4 Corner Minute Dots (+1, +2, +3, +4 minutes offset)
+  if (m_rem >= 1) matrix.fillRect(1, 1, 2, 2, COLOR_WHITE);   // Top-Left
+  if (m_rem >= 2) matrix.fillRect(61, 1, 2, 2, COLOR_WHITE);  // Top-Right
+  if (m_rem >= 3) matrix.fillRect(61, 61, 2, 2, COLOR_WHITE); // Bottom-Right
+  if (m_rem >= 4) matrix.fillRect(1, 61, 2, 2, COLOR_WHITE);  // Bottom-Left
+
+  matrix.show();
 }
 
 // ----------------------------------------------------------------------
@@ -393,7 +599,7 @@ void runPixelDustFrame() {
   matrix.show();
 }
 
-// Hardware Button Handler (UP -> Status Screen, DOWN -> PixelDust Sand Demo)
+// Hardware Button Handler (UP -> Toggle Modes, DOWN -> PixelDust Sand Demo)
 void handleButtons() {
   if (millis() - lastButtonCheck < 50) return;
   lastButtonCheck = millis();
@@ -402,12 +608,15 @@ void handleButtons() {
   bool currentDownState = digitalRead(BUTTON_DOWN_PIN);
 
   if (lastUpState == HIGH && currentUpState == LOW) {
-    if (currentMode == MODE_STATUS) {
-      currentMode = MODE_NORMAL;
-      Serial.println(F("\n[Button UP] -> Normal Screen"));
-    } else {
+    if (currentMode == MODE_NORMAL) {
+      currentMode = MODE_WORDCLOCK;
+      Serial.println(F("\n[Button UP] -> QLOCKTWO Word Clock Screen"));
+    } else if (currentMode == MODE_WORDCLOCK) {
       currentMode = MODE_STATUS;
       Serial.println(F("\n[Button UP] -> Status Screen"));
+    } else {
+      currentMode = MODE_NORMAL;
+      Serial.println(F("\n[Button UP] -> Normal Screen"));
     }
   }
 
@@ -529,6 +738,7 @@ void showStatus() {
   Serial.print(F(" Display Mode:  ")); 
   if (currentMode == MODE_PIXELDUST) Serial.println("PIXEL DUST DEMO");
   else if (currentMode == MODE_STATUS) Serial.println("STATUS SCREEN");
+  else if (currentMode == MODE_WORDCLOCK) Serial.println("QLOCKTWO WORD CLOCK");
   else Serial.println("CLOCK & ENERGY");
   Serial.print(F(" Language:      ")); Serial.println(config.lang == 0 ? "DEUTSCH (German)" : "ENGLISH");
   Serial.print(F(" Wi-Fi Status:  ")); Serial.println(WiFi.status() == WL_CONNECTED ? "CONNECTED" : "DISCONNECTED");
@@ -549,7 +759,7 @@ void printHelp() {
   Serial.println(F("\n--- HomeNodeMatrix Serial CLI Commands ---"));
   Serial.println(F(" status                - Print current configuration & status"));
   Serial.println(F(" build / version / ver - Print firmware version, build number & compile timestamp"));
-  Serial.println(F(" mode normal/status/dust - Switch active display mode"));
+  Serial.println(F(" mode normal/word/status/dust - Switch active display mode"));
   Serial.println(F(" lang de / lang en     - Switch system language (German / English)"));
   Serial.println(F(" brightness <10-255>   - Adjust display brightness (e.g. brightness 100)"));
   Serial.println(F(" debug on / debug off  - Enable or disable background live debug logs"));
@@ -605,6 +815,10 @@ void handleSerialCLI() {
           config.lang = 1;
           saveConfig();
           Serial.println(F("[CLI] Language changed to: ENGLISH"));
+          Serial.print(F("CLI> "));
+        } else if (serialBuffer.equals("mode word") || serialBuffer.equals("mode wordclock") || serialBuffer.equals("mode qlock")) {
+          currentMode = MODE_WORDCLOCK;
+          Serial.println(F("[CLI] QLOCKTWO Word Clock Screen ENABLED!"));
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("mode status")) {
           currentMode = MODE_STATUS;
@@ -1284,7 +1498,7 @@ void setup() {
     Serial.print(F(" SSID:     ")); Serial.println(AP_SSID);
     Serial.print(F(" PASS/PIN: ")); Serial.println(ap_password);
     Serial.print(F(" AP IP:    ")); Serial.println(apIPAddress);
-    Serial.println(F(" Press UP for Status screen, DOWN for PixelDust Sand Demo!"));
+    Serial.println(F(" Press UP to toggle modes (Normal -> QLOCKTWO -> Status -> PixelDust)!"));
     Serial.println(F(" Type 'help' on Serial Console for CLI commands"));
     Serial.println(F("==================================================\n"));
 
@@ -1302,7 +1516,7 @@ void setup() {
 // MAIN LOOP
 // ----------------------------------------------------------------------
 void loop() {
-  // 1. Process Hardware Buttons (UP -> Status, DOWN -> PixelDust)
+  // 1. Process Hardware Buttons (UP -> Mode cycle, DOWN -> PixelDust)
   handleButtons();
 
   // 2. Process Serial CLI
@@ -1335,7 +1549,9 @@ void loop() {
 
   // 6. Display Redraw according to active mode
   if (currentMs - lastDisplayRedraw >= 100) {
-    if (currentMode == MODE_STATUS) {
+    if (currentMode == MODE_WORDCLOCK) {
+      drawWordClockScreen();
+    } else if (currentMode == MODE_STATUS) {
       drawStatusScreen();
     } else {
       drawNormalScreen();
