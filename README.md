@@ -2,6 +2,8 @@
 
 **HomeNodeMatrix** is a smart energy and time display built for the **Adafruit MatrixPortal M4** connected to a **64x64 RGB LED Matrix Display**.
 
+![HomeNodeMatrix Display in Action](assets/homenodematrix_display.jpg)
+
 It fetches real-time solar generation data from your photovoltaic system (**Fronius Inverter**) as well as grid power consumption/feed-in from your smart meter (**Shelly 3Pro / Pro 3EM**), displaying them alongside synchronized clock and date information.
 
 ---
@@ -21,7 +23,7 @@ You can instantly test HomeNodeMatrix without installing Arduino IDE or compilin
 
 ## 🌟 Features
 
-- **Time & Date Display**: Precise NTP clock synchronization and dynamic weekday calculation (`Mo. 3.8.26` / `Mon 3.8.26`).
+- **Time & Date Display**: Precise NTP clock synchronization and dynamic weekday calculation (`Mo. 3.8.26` / `Mon 10.8.26`).
 - **Solar Generation (`SOLAR`)**: Real-time PV power readings using the **Fronius Solar API v1** (`/solar_api/v1/GetPowerFlowRealtimeData.fcgi`).
 - **Grid Power (`NETZ` / `GRID`)**: Live grid import and export readings using the **Shelly Gen2 HTTP API** (`/rpc/Shelly.GetStatus`).
 - **Animated Boot Connection Screen**: Clean Wi-Fi icon with a ring of 8 yellow dots filling up clockwise to indicate connection progress (no text).
