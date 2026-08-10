@@ -5,7 +5,7 @@
 
 // Firmware Version & Build Metadata
 #define FIRMWARE_VERSION "v0.1.0"
-#define BUILD_NUMBER     105
+#define BUILD_NUMBER     106
 #define BUILD_TIMESTAMP  __DATE__ " " __TIME__
 
 // Flash Storage Structure for SAMD51 EEPROM

@@ -1,8 +1,10 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
+  - Live Wi-Fi Hot Reconnect: CLI 'wifi <ssid> <pass>' immediately disconnects
+    and connects to the new network without requiring a hardware reboot!
+  - CLI Build Info: 'build' / 'version' command showing Build Number, Version & Timestamp
   - Clean Date Format: "Mo 10.08.26" (No dot after 2-letter weekday, 2-digit day & month)
-  - CLI Build Info: "build" / "version" command showing Build Number, Version & Timestamp
   - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
   - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
@@ -127,6 +129,10 @@ void logDebug(const String& msg) {
   }
 }
 
+// Forward declarations
+unsigned long fetchNTPTime();
+void drawWifiFillProgressScreen(int filledCount);
+
 // ----------------------------------------------------------------------
 // Dynamic Color Scaling for Brightness Control (0-255)
 // ----------------------------------------------------------------------
@@ -146,6 +152,49 @@ void updateColors() {
 void applyBrightness(uint8_t b) {
   config.brightness = constrain(b, 10, 255);
   updateColors();
+}
+
+// ----------------------------------------------------------------------
+// Live Hot Wi-Fi Reconnect (No reboot required!)
+// ----------------------------------------------------------------------
+bool connectWiFi(bool showAnimation) {
+  if (strlen(config.wifi_ssid) == 0) return false;
+
+  Serial.print(F("[WLAN] Connecting to SSID: '"));
+  Serial.print(config.wifi_ssid);
+  Serial.println(F("'..."));
+
+  WiFi.disconnect();
+  delay(100);
+
+  WiFi.begin(config.wifi_ssid, config.wifi_pass);
+
+  for (int step = 0; step <= 8; step++) {
+    if (showAnimation) drawWifiFillProgressScreen(step);
+    if (WiFi.status() == WL_CONNECTED) break;
+    delay(450);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    isAPMode = false;
+    Serial.println(F("\n[WLAN] Wi-Fi Connected Successfully!"));
+    Serial.print(F("[WLAN] IP Address: "));
+    Serial.println(WiFi.localIP());
+
+    matrix.fillScreen(COLOR_BLACK);
+    matrix.show();
+
+    unsigned long ntpEpoch = fetchNTPTime();
+    if (ntpEpoch > 0) {
+      localUnixTime = ntpEpoch;
+      lastTimeSyncMs = millis();
+    }
+    return true;
+  } else {
+    Serial.println(F("\n[WLAN] Connection failed!"));
+    return false;
+  }
 }
 
 // ----------------------------------------------------------------------
@@ -502,7 +551,7 @@ void printHelp() {
   Serial.println(F(" lang de / lang en     - Switch system language (German / English)"));
   Serial.println(F(" brightness <10-255>   - Adjust display brightness (e.g. brightness 100)"));
   Serial.println(F(" debug on / debug off  - Enable or disable background live debug logs"));
-  Serial.println(F(" wifi <ssid> <pass>    - Set Wi-Fi network credentials"));
+  Serial.println(F(" wifi <ssid> <pass>    - Set Wi-Fi network credentials & hot-reconnect live!"));
   Serial.println(F(" shelly <ip> [path]    - Set Shelly 3Pro IP address and API path"));
   Serial.println(F(" inverter <ip> [path]  - Set Fronius inverter IP address and API path"));
   Serial.println(F(" utc <offset>          - Set GMT offset in seconds (e.g. 7200 for CEST)"));
@@ -585,7 +634,12 @@ void handleSerialCLI() {
             ssid.toCharArray(config.wifi_ssid, sizeof(config.wifi_ssid));
             pass.toCharArray(config.wifi_pass, sizeof(config.wifi_pass));
             saveConfig();
-            Serial.println(F("[CLI] Wi-Fi credentials updated & saved!"));
+            Serial.println(F("[CLI] Wi-Fi credentials updated & saved to Flash!"));
+            Serial.println(F("[CLI] Live reconnecting to new Wi-Fi network (no reboot required)..."));
+            bool ok = connectWiFi(true);
+            if (!ok) {
+              Serial.println(F("[CLI] Reconnect failed! Check SSID/Password or router signal."));
+            }
             showStatus();
           }
           Serial.print(F("CLI> "));
@@ -1198,22 +1252,9 @@ void setup() {
     Serial.println(F("[WLAN] No SSID saved. Starting Access Point Mode..."));
     isAPMode = true;
   } else {
-    Serial.print(F("[WLAN] Connecting to SSID: '"));
-    Serial.print(config.wifi_ssid);
-    Serial.println(F("'"));
-
-    WiFi.begin(config.wifi_ssid, config.wifi_pass);
-
-    // 8 fill-up steps around the Wi-Fi icon (no text)
-    for (int step = 0; step <= 8; step++) {
-      drawWifiFillProgressScreen(step);
-      if (WiFi.status() == WL_CONNECTED) break;
-      delay(450);
-      Serial.print(".");
-    }
-
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println(F("\n[WLAN] Connection failed! Switching to Access Point Mode..."));
+    bool ok = connectWiFi(true);
+    if (!ok) {
+      Serial.println(F("[WLAN] Connection failed! Switching to Access Point Mode..."));
       isAPMode = true;
     }
   }
@@ -1241,21 +1282,6 @@ void setup() {
 
     drawAPScreen();
   } else {
-    Serial.println(F("\n[WLAN] Wi-Fi Connected Successfully!"));
-    Serial.print(F("[WLAN] IP Address: "));
-    Serial.println(WiFi.localIP());
-
-    matrix.fillScreen(COLOR_BLACK);
-    drawWifiIcon(28, 25, COLOR_GREEN);
-    matrix.show();
-    delay(1000);
-
-    unsigned long ntpEpoch = fetchNTPTime();
-    if (ntpEpoch > 0) {
-      localUnixTime = ntpEpoch;
-      lastTimeSyncMs = millis();
-    }
-
     webServer.begin();
   }
 
