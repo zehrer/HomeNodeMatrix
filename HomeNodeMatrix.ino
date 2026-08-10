@@ -1,10 +1,12 @@
 /* ----------------------------------------------------------------------
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
+  - Perfect Date Layout ("Mo 10.08.26"):
+    'Mo' drawn at x=1 (no missing left line of 'M'), 3px tight gap,
+    and '10.08.26' drawn at x=15 (ends at x=61, leaving 2px right margin).
   - Live Wi-Fi Hot Reconnect: CLI 'wifi <ssid> <pass>' immediately disconnects
     and connects to the new network without requiring a hardware reboot!
   - CLI Build Info: 'build' / 'version' command showing Build Number, Version & Timestamp
-  - Clean Date Format: "Mo 10.08.26" (No dot after 2-letter weekday, 2-digit day & month)
   - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
   - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
@@ -1176,13 +1178,19 @@ void drawNormalScreen() {
   // Wi-Fi Symbol (Green = Connected, Red = Disconnected)
   drawWifiIcon(54, 2, WiFi.status() == WL_CONNECTED ? COLOR_GREEN : COLOR_RED);
 
-  // 2. Date & Weekday: Standard font formatted as "Mo 10.08.26" (2-digit day & 2-digit month, no dot after weekday)
+  // 2. Date & Weekday: "Mo 10.08.26"
+  // Draw "Mo" at x=1 (preserves 100% of 'M' without missing left column),
+  // 3px tight gap, then "10.08.26" at x=15 (ends at x=61, leaving 2px right margin)
   matrix.setTextColor(COLOR_WHITE);
   matrix.setTextSize(1);
-  char dateBuf[16];
-  sprintf(dateBuf, "%s %02d.%02d.%02d", dayStr, day, month, year % 100);
-  matrix.setCursor(-1, 11);
-  matrix.print(dateBuf);
+  
+  matrix.setCursor(1, 11);
+  matrix.print(dayStr);
+
+  char dateNumBuf[12];
+  sprintf(dateNumBuf, "%02d.%02d.%02d", day, month, year % 100);
+  matrix.setCursor(15, 11);
+  matrix.print(dateNumBuf);
 
   matrix.drawFastHLine(0, 20, 64, COLOR_GRAY);
 
