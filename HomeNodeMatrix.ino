@@ -2,6 +2,7 @@
   HomeNodeMatrix - MatrixPortal M4 (64x64 LED Matrix)
   Smart Energy & Time Display with Web Configuration & Serial CLI
   - Clean Date Format: "Mo 10.08.26" (No dot after 2-letter weekday, 2-digit day & month)
+  - CLI Build Info: "build" / "version" command showing Build Number, Version & Timestamp
   - Multi-Language Support: English & German (Configurable via Web & CLI)
   - Boot Wi-Fi Connection Screen: Clean Wi-Fi icon with 8 filling-up progress dots (no text)
   - Automatic transition to AP Setup Mode when all 8 dots fill up without connection
@@ -460,10 +461,19 @@ void saveConfig() {
   Serial.println(F("[Config] Configuration saved to Flash storage."));
 }
 
+void showBuildInfo() {
+  Serial.println(F("\n=================================================="));
+  Serial.print(F(" HomeNodeMatrix Firmware Version: ")); Serial.println(FIRMWARE_VERSION);
+  Serial.print(F(" Build Number:                    #")); Serial.println(BUILD_NUMBER);
+  Serial.print(F(" Build Timestamp:                 ")); Serial.println(BUILD_TIMESTAMP);
+  Serial.println(F("==================================================\n"));
+}
+
 void showStatus() {
   Serial.println(F("\n=================================================="));
   Serial.println(F(" HOMENODEMATRIX CONFIG & STATUS"));
   Serial.println(F("=================================================="));
+  Serial.print(F(" Version / Build: ")); Serial.print(FIRMWARE_VERSION); Serial.print(F(" (Build #")); Serial.print(BUILD_NUMBER); Serial.println(F(")"));
   Serial.print(F(" Mode:          ")); Serial.println(isAPMode ? "ACCESS POINT (Setup)" : "WLAN CLIENT");
   Serial.print(F(" Display Mode:  ")); 
   if (currentMode == MODE_PIXELDUST) Serial.println("PIXEL DUST DEMO");
@@ -487,6 +497,7 @@ void showStatus() {
 void printHelp() {
   Serial.println(F("\n--- HomeNodeMatrix Serial CLI Commands ---"));
   Serial.println(F(" status                - Print current configuration & status"));
+  Serial.println(F(" build / version / ver - Print firmware version, build number & compile timestamp"));
   Serial.println(F(" mode normal/status/dust - Switch active display mode"));
   Serial.println(F(" lang de / lang en     - Switch system language (German / English)"));
   Serial.println(F(" brightness <10-255>   - Adjust display brightness (e.g. brightness 100)"));
@@ -530,6 +541,9 @@ void handleSerialCLI() {
           printHelp();
         } else if (serialBuffer.equals("status") || serialBuffer.equals("show")) {
           showStatus();
+          Serial.print(F("CLI> "));
+        } else if (serialBuffer.equals("build") || serialBuffer.equals("version") || serialBuffer.equals("ver")) {
+          showBuildInfo();
           Serial.print(F("CLI> "));
         } else if (serialBuffer.equals("lang de")) {
           config.lang = 0;
@@ -1246,6 +1260,7 @@ void setup() {
   }
 
   Serial.println(F("[Web] HTTP Web server started on port 80!"));
+  showBuildInfo();
   printHelp();
 }
 
