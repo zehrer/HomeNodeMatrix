@@ -45,8 +45,6 @@ You can instantly test HomeNodeMatrix without installing Arduino IDE or compilin
 
 ## 📐 3D Printable Enclosure (Tinkercad)
 
-![3D Case Preview](assets/matrix_case_3d_preview.png)
-
 3D printable model files for the custom matrix enclosure are located in the [`3d_models/`](3d_models/) directory.
 
 - 💾 **[Download STL File (Matrix_Case.stl)](3d_models/Matrix_Case.stl)** *(3D Printer Slicer Format)*
