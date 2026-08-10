@@ -2,7 +2,7 @@
 
 This directory contains the 3D printable enclosure files for the **Adafruit MatrixPortal M4 + 64x64 LED Matrix Display**.
 
-![3D Enclosure Model](Matrix%20Case.glb)
+📦 **[Download Complete Tinkercad 3D Model (Matrix Case.glb)](Matrix%20Case.glb)**
 
 ---
 
